@@ -1,17 +1,18 @@
-# tren_app
+# TrenApp
 
-A new Flutter project.
+Mobilní aplikace pro komunikaci a sledování tréninků ve sportovním oddíle.
+Vytvořeno ve Flutter + Firebase.
 
-## Getting Started
+## Funkce
+- Přihlášení přes email/heslo nebo Google
+- Role trenér / hráč
+- GPS tracking běžeckých tréninků
+- Individuální tréninkové plány
+- Chat mezi trenérem a hráči
 
-This project is a starting point for a Flutter application.
+## Technologie
+- Flutter
+- Firebase Auth
+- Cloud Firestore
+- Google Sign-In
 
-A few resources to get you started if this is your first Flutter project:
-
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
