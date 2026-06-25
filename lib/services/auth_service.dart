@@ -7,16 +7,16 @@ class AuthService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final GoogleSignIn _googleSignIn = GoogleSignIn();
 
-  // Registrace email/heslo
-  Future<UserCredential> register(
-      String email, String password, String role) async {
+  // Registrace email/heslo - bez role
+  Future<UserCredential> register(String email, String password) async {
     UserCredential cred = await _auth.createUserWithEmailAndPassword(
       email: email,
       password: password,
     );
     await _db.collection('users').doc(cred.user!.uid).set({
       'email': email,
-      'role': role,
+      'role': null,      // role se přiřadí až po připojení k týmu
+      'teamId': null,    // tým zatím nemá
       'createdAt': DateTime.now(),
     });
     return cred;
@@ -45,12 +45,12 @@ class AuthService {
 
     UserCredential cred = await _auth.signInWithCredential(credential);
 
-    // Ulož uživatele do Firestore pokud je nový
     final doc = await _db.collection('users').doc(cred.user!.uid).get();
     if (!doc.exists) {
       await _db.collection('users').doc(cred.user!.uid).set({
         'email': cred.user!.email,
-        'role': 'player', // výchozí role
+        'role': null,
+        'teamId': null,
         'createdAt': DateTime.now(),
       });
     }

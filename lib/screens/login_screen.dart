@@ -15,7 +15,6 @@ class _LoginScreenState extends State<LoginScreen> {
   final _authService = AuthService();
 
   bool _isLogin = true;
-  String _selectedRole = 'player';
   bool _loading = false;
   String _error = '';
 
@@ -31,7 +30,6 @@ class _LoginScreenState extends State<LoginScreen> {
         await _authService.register(
           _emailController.text.trim(),
           _passwordController.text.trim(),
-          _selectedRole,
         );
       }
       if (mounted) {
@@ -100,21 +98,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   prefixIcon: Icon(Icons.lock),
                 ),
               ),
-              if (!_isLogin) ...[
-                const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  value: _selectedRole,
-                  decoration: const InputDecoration(
-                    labelText: 'Role',
-                    border: OutlineInputBorder(),
-                  ),
-                  items: const [
-                    DropdownMenuItem(value: 'player', child: Text('Hráč')),
-                    DropdownMenuItem(value: 'coach', child: Text('Trenér')),
-                  ],
-                  onChanged: (val) => setState(() => _selectedRole = val!),
-                ),
-              ],
               if (_error.isNotEmpty) ...[
                 const SizedBox(height: 12),
                 Text(_error, style: const TextStyle(color: Colors.red)),
