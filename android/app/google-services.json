@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "557599926527",
+    "project_id": "trenapp-ddc3d",
+    "storage_bucket": "trenapp-ddc3d.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:557599926527:android:4978ab713e231e62c084ca",
+        "android_client_info": {
+          "package_name": "com.example.tren_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyChIMGCobMC4TW39C5KKBDVxwgQi4wUKK8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
