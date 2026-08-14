@@ -1,0 +1,79 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isMe(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    // Je aktuální uživatel členem daného týmu (jakoukoliv rolí)?
+    function isTeamMember(teamId) {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/teams/$(teamId)/members/$(request.auth.uid));
+    }
+
+    function isTeamCoach(teamId) {
+      return isSignedIn() &&
+        get(/databases/$(database)/documents/teams/$(teamId)/members/$(request.auth.uid)).data.role == 'coach';
+    }
+
+    // users/{uid} – veřejný profil uživatele (email atd.)
+    match /users/{uid} {
+      allow read: if isSignedIn();
+      allow create: if isMe(uid);
+      allow update: if isMe(uid);
+      allow delete: if false;
+
+      // users/{uid}/teams/{teamId} – přehled týmů daného uživatele a jeho
+      // role v nich. Zapisuje si ho vždy jen sám uživatel (TeamService ho
+      // volá jako aktuálně přihlášený uid, ať zakládá, nebo se připojuje).
+      match /teams/{teamId} {
+        allow read, write: if isMe(uid);
+      }
+    }
+
+    // teams/{teamId} – základní údaje týmu (název, kód, zakladatel)
+    match /teams/{teamId} {
+      allow read: if isTeamMember(teamId);
+      allow create: if isSignedIn() && request.resource.data.createdBy == request.auth.uid;
+      allow update: if isTeamCoach(teamId);
+      allow delete: if false;
+
+      // teams/{teamId}/members/{uid} – roster týmu
+      match /members/{uid} {
+        // isMe(uid) navíc (nejen isTeamMember) dovoluje uživateli ověřit
+        // si existenci VLASTNÍHO členství ještě předtím, než je členem
+        // (TeamService.joinTeamByCode kontroluje, jestli už v týmu není).
+        allow read: if isMe(uid) || isTeamMember(teamId);
+        // Připojení kódem: kdokoliv přihlášený se smí přidat sám sobě,
+        // ale jen jako 'player'. Role 'coach' smí vzniknout jen pro
+        // zakladatele týmu (ten už v tuto chvíli existuje – zapisuje se
+        // dřív, viz TeamService.createTeam) a ne dodatečným zápisem od kohokoli jiného.
+        allow create: if isMe(uid) && (
+          request.resource.data.role == 'player' ||
+          (request.resource.data.role == 'coach' &&
+            get(/databases/$(database)/documents/teams/$(teamId)).data.createdBy == request.auth.uid)
+        );
+        allow update, delete: if isTeamCoach(teamId);
+      }
+    }
+
+    // team_codes/{code} – vyhledávací mapa "pozvánkový kód -> tým", doc id
+    // je přímo kód. Umožňuje připojení k týmu přímým get() podle id, což
+    // funguje i pro uživatele, kteří (zatím) nejsou členy žádného týmu –
+    // na rozdíl od dotazu nad kolekcí teams (viz komentář v TeamService).
+    // list je zakázaný, aby nešlo kódy hromadně vypsat/uhodnout skenováním.
+    match /team_codes/{code} {
+      allow get: if isSignedIn();
+      allow list: if false;
+      allow create: if isSignedIn() &&
+        get(/databases/$(database)/documents/teams/$(request.resource.data.teamId)).data.createdBy == request.auth.uid;
+      allow update, delete: if false;
+    }
+  }
+}

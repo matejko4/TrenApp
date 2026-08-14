@@ -7,7 +7,8 @@ class AuthService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final GoogleSignIn _googleSignIn = GoogleSignIn();
 
-  // Registrace email/heslo - bez role
+  // Registrace email/heslo - role se přiřadí až po vytvoření/připojení týmu
+  // (viz TeamService), proto se zde neukládá.
   Future<UserCredential> register(String email, String password) async {
     UserCredential cred = await _auth.createUserWithEmailAndPassword(
       email: email,
@@ -15,9 +16,7 @@ class AuthService {
     );
     await _db.collection('users').doc(cred.user!.uid).set({
       'email': email,
-      'role': null,      // role se přiřadí až po připojení k týmu
-      'teamId': null,    // tým zatím nemá
-      'createdAt': DateTime.now(),
+      'createdAt': FieldValue.serverTimestamp(),
     });
     return cred;
   }
@@ -49,9 +48,7 @@ class AuthService {
     if (!doc.exists) {
       await _db.collection('users').doc(cred.user!.uid).set({
         'email': cred.user!.email,
-        'role': null,
-        'teamId': null,
-        'createdAt': DateTime.now(),
+        'createdAt': FieldValue.serverTimestamp(),
       });
     }
 
