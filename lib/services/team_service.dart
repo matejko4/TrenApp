@@ -17,6 +17,7 @@ class TeamRole {
 /// - teams/{teamId}/members/{uid}        – roster týmu (role, e-mail, kdy se přidal)
 /// - users/{uid}/teams/{teamId}          – rychlý přehled týmů daného uživatele a jeho role v nich
 /// - team_codes/{code}                   – mapování pozvánkového kódu na tým (viz níže)
+/// - team_names/{normalizedName}         – hlídání unikátnosti názvu týmu (viz níže)
 ///
 /// Uživatel může být v libovolném počtu týmů, v každém s jinou rolí,
 /// proto se role neukládá na uživatele globálně, ale vždy ve vazbě na tým.
@@ -28,6 +29,14 @@ class TeamRole {
 /// týmy v kolekci najednou, což pro nečlena (přesně případ připojování)
 /// nejde splnit. Přímý `get()` podle id dokumentu (=kódu) tento problém
 /// nemá, protože se vyhodnocuje jen vůči jednomu konkrétnímu dokumentu.
+///
+/// team_names funguje na stejném principu a navíc vynucuje unikátnost
+/// názvu: doc id je normalizovaný název (trim + lowercase + sloučené
+/// mezery) a bezpečnostní pravidla na něj povolují jen `create`, ne
+/// `update`. Když už název existuje, druhý pokus o zápis Firestore
+/// vyhodnotí jako update existujícího dokumentu, který pravidla zakazují
+/// – to spolehlivě zabrání duplicitám i při souběžném vytváření dvou
+/// týmů se stejným názvem ve stejný okamžik.
 class TeamService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -56,19 +65,48 @@ class TeamService {
     throw Exception('Nepodařilo se vygenerovat kód týmu, zkus to znovu');
   }
 
+  /// Normalizovaný klíč pro kontrolu unikátnosti názvu: bez ohledu na
+  /// velikost písmen a na duplicitní/okrajové mezery.
+  String _normalizeName(String name) {
+    return name.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
+  }
+
   /// Vytvoří nový tým. Zakladatel se stává trenérem tohoto týmu.
   /// Vrací id nově vytvořeného týmu.
+  ///
+  /// Vyhodí Exception, pokud už tým se stejným názvem existuje (viz
+  /// team_names v komentáři u třídy).
   Future<String> createTeam(String name) async {
     final trimmedName = name.trim();
     if (trimmedName.isEmpty) {
       throw Exception('Zadej název týmu');
     }
+    if (trimmedName.contains('/')) {
+      throw Exception('Název týmu nesmí obsahovat znak "/"');
+    }
 
     final user = _auth.currentUser;
     if (user == null) throw Exception('Uživatel není přihlášen');
 
-    final code = await _generateUniqueCode();
     final teamRef = _db.collection('teams').doc();
+    final nameRef = _db.collection('team_names').doc(_normalizeName(trimmedName));
+
+    // Zamluvení unikátního názvu musí proběhnout jako první – teprve když
+    // se to podaří, má smysl generovat kód a zakládat samotný tým.
+    try {
+      await nameRef.set({
+        'teamId': teamRef.id,
+        'createdBy': user.uid,
+      });
+    } on FirebaseException catch (e) {
+      if (e.code == 'permission-denied') {
+        throw Exception(
+            'Tým s názvem "$trimmedName" už existuje, zvol prosím jiný název');
+      }
+      rethrow;
+    }
+
+    final code = await _generateUniqueCode();
 
     // Tým se zapisuje samostatně a až poté (v dávce) členství a index u
     // uživatele. Bezpečnostní pravidla pro vznik "coach" členství ověřují
@@ -184,5 +222,93 @@ class TeamService {
 
   Future<DocumentSnapshot<Map<String, dynamic>>> getTeam(String teamId) {
     return _db.collection('teams').doc(teamId).get();
+  }
+
+  /// Změní roli člena týmu (coach/player). Smí jen trenér týmu.
+  ///
+  /// Zakladatel týmu (teams/{teamId}.createdBy) nejde přepnout na hráče –
+  /// ani sám sebe, ani jiným trenérem – aby tým nikdy nezůstal bez
+  /// trenéra, kterého by šlo znovu upravovat (viz i firestore.rules).
+  ///
+  /// Kromě záznamu v rosteru (teams/{teamId}/members/{uid}) se role
+  /// aktualizuje i v indexu users/{uid}/teams/{teamId}, aby zůstala
+  /// konzistentní i tam, odkud si daný uživatel čte přehled svých týmů.
+  Future<void> updateMemberRole(String teamId, String uid, String role) async {
+    if (role != TeamRole.coach && role != TeamRole.player) {
+      throw Exception('Neplatná role');
+    }
+
+    if (role == TeamRole.player) {
+      final teamDoc = await _db.collection('teams').doc(teamId).get();
+      final createdBy = teamDoc.data()?['createdBy'] as String?;
+      if (createdBy == uid) {
+        throw Exception('Zakladatele týmu nelze změnit na hráče');
+      }
+    }
+
+    final batch = _db.batch();
+    batch.update(
+      _db.collection('teams').doc(teamId).collection('members').doc(uid),
+      {'role': role},
+    );
+    batch.update(
+      _db.collection('users').doc(uid).collection('teams').doc(teamId),
+      {'role': role},
+    );
+    await batch.commit();
+  }
+
+  /// Odebere člena z týmu. Smí jen trenér týmu.
+  ///
+  /// Zakladatele týmu takto odebrat nejde (viz i firestore.rules) – tým
+  /// by tak mohl přijít o posledního/jediného trenéra. Jediný způsob, jak
+  /// se zakladatele „zbavit“, je zrušit tým celý (viz [deleteTeam]).
+  Future<void> removeMember(String teamId, String uid) async {
+    final teamDoc = await _db.collection('teams').doc(teamId).get();
+    final createdBy = teamDoc.data()?['createdBy'] as String?;
+    if (createdBy == uid) {
+      throw Exception('Zakladatele nelze z týmu odebrat, tým lze pouze celý zrušit');
+    }
+
+    final batch = _db.batch();
+    batch.delete(
+      _db.collection('teams').doc(teamId).collection('members').doc(uid),
+    );
+    batch.delete(
+      _db.collection('users').doc(uid).collection('teams').doc(teamId),
+    );
+    await batch.commit();
+  }
+
+  /// Úplně zruší tým – smaže samotný tým, celý roster (a jeho index u
+  /// každého člena), pozvánkový kód i zamluvený název týmu. Smí jen
+  /// trenér týmu. Operace je nevratná.
+  Future<void> deleteTeam(String teamId) async {
+    final teamRef = _db.collection('teams').doc(teamId);
+    final teamDoc = await teamRef.get();
+    if (!teamDoc.exists) return;
+
+    final data = teamDoc.data()!;
+    final code = data['code'] as String?;
+    final name = data['name'] as String?;
+
+    final membersSnap = await teamRef.collection('members').get();
+
+    final batch = _db.batch();
+    for (final memberDoc in membersSnap.docs) {
+      batch.delete(memberDoc.reference);
+      batch.delete(
+        _db.collection('users').doc(memberDoc.id).collection('teams').doc(teamId),
+      );
+    }
+    if (code != null) {
+      batch.delete(_db.collection('team_codes').doc(code));
+    }
+    if (name != null) {
+      batch.delete(_db.collection('team_names').doc(_normalizeName(name)));
+    }
+    batch.delete(teamRef);
+
+    await batch.commit();
   }
 }

@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import '../services/auth_service.dart';
 import '../services/team_service.dart';
 import 'login_screen.dart';
+import 'team_detail_screen.dart';
 import 'team_setup_screen.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -97,10 +98,16 @@ class HomeScreen extends StatelessWidget {
                         )
                       : const Icon(Icons.chevron_right),
                   onTap: () {
-                    // Detail týmu (přehled událostí, roster, chat...) přijde
-                    // v dalším kroku vývoje.
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Detail týmu „$teamName“ – připravujeme')),
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => TeamDetailScreen(
+                          teamId: teams[index].id,
+                          teamName: teamName,
+                          isCoach: isCoach,
+                          code: isCoach ? code : null,
+                        ),
+                      ),
                     );
                   },
                 ),
