@@ -14,7 +14,7 @@ class TeamRole {
 ///
 /// Datový model:
 /// - teams/{teamId}                      – základní údaje o týmu (název, kód, zakladatel)
-/// - teams/{teamId}/members/{uid}        – roster týmu (role, e-mail, kdy se přidal)
+/// - teams/{teamId}/members/{uid}        – roster týmu (jméno, role, e-mail, kdy se přidal)
 /// - users/{uid}/teams/{teamId}          – rychlý přehled týmů daného uživatele a jeho role v nich
 /// - team_codes/{code}                   – mapování pozvánkového kódu na tým (viz níže)
 /// - team_names/{normalizedName}         – hlídání unikátnosti názvu týmu (viz níže)
@@ -53,7 +53,7 @@ class TeamService {
     // Bez znaků, které se snadno pletou (0/O, 1/I).
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     final rand = Random.secure();
-    return List.generate(6, (_) => chars[rand.nextInt(chars.length)]).join();
+    return List.generate(8, (_) => chars[rand.nextInt(chars.length)]).join();
   }
 
   Future<String> _generateUniqueCode() async {
@@ -63,6 +63,13 @@ class TeamService {
       if (!existing.exists) return code;
     }
     throw Exception('Nepodařilo se vygenerovat kód týmu, zkus to znovu');
+  }
+
+  /// Jméno aktuálního uživatele (users/{uid}.name), které se ukládá do
+  /// rosteru týmu, aby se ostatním členům zobrazovalo místo e-mailu.
+  Future<String?> _myName(User user) async {
+    final doc = await _db.collection('users').doc(user.uid).get();
+    return doc.data()?['name'] as String? ?? user.displayName;
   }
 
   /// Normalizovaný klíč pro kontrolu unikátnosti názvu: bez ohledu na
@@ -107,6 +114,7 @@ class TeamService {
     }
 
     final code = await _generateUniqueCode();
+    final myName = await _myName(user);
 
     // Tým se zapisuje samostatně a až poté (v dávce) členství a index u
     // uživatele. Bezpečnostní pravidla pro vznik "coach" členství ověřují
@@ -129,6 +137,7 @@ class TeamService {
 
     batch.set(teamRef.collection('members').doc(user.uid), {
       'uid': user.uid,
+      'name': myName,
       'email': user.email,
       'role': TeamRole.coach,
       'joinedAt': FieldValue.serverTimestamp(),
@@ -177,10 +186,13 @@ class TeamService {
       throw Exception('V tomto týmu už jsi členem');
     }
 
+    final myName = await _myName(user);
+
     final batch = _db.batch();
 
     batch.set(memberRef, {
       'uid': user.uid,
+      'name': myName,
       'email': user.email,
       'role': TeamRole.player,
       'joinedAt': FieldValue.serverTimestamp(),

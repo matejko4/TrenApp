@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../services/team_service.dart';
+import '../widgets/account_actions.dart';
 
 /// Detail týmu – roster členů. Trenér zde navíc může měnit role členů,
 /// odebírat je z týmu a tým celý zrušit.
@@ -57,12 +58,12 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
     }
   }
 
-  Future<void> _removeMember(String uid, String email) async {
+  Future<void> _removeMember(String uid, String name) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Odebrat člena'),
-        content: Text('Opravdu chceš odebrat "$email" z týmu?'),
+        content: Text('Opravdu chceš odebrat "$name" z týmu?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -149,6 +150,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
               tooltip: 'Zrušit tým',
               onPressed: _deleting ? null : _deleteTeam,
             ),
+          ...accountActions(),
         ],
       ),
       body: _deleting
@@ -177,7 +179,11 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                     final data = memberDoc.data();
                     final uid = memberDoc.id;
                     final role = data['role'] as String? ?? TeamRole.player;
-                    final email = data['email'] as String? ?? uid;
+                    // Starší členství nemusí mít jméno uložené – pak
+                    // se zobrazí aspoň e-mail.
+                    final name = data['name'] as String? ??
+                        data['email'] as String? ??
+                        uid;
                     final isMemberCoach = role == TeamRole.coach;
                     final isMe = uid == _myUid;
                     final isFounder = uid == _founderUid;
@@ -193,7 +199,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                             color: Colors.white,
                           ),
                         ),
-                        title: Text(isMe ? '$email (já)' : email),
+                        title: Text(isMe ? '$name (já)' : name),
                         subtitle: Text(isMemberCoach ? 'Trenér' : 'Hráč'),
                         trailing: widget.isCoach
                             ? Row(
@@ -228,7 +234,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                                       icon: const Icon(Icons.person_remove),
                                       tooltip: 'Odebrat z týmu',
                                       onPressed: () =>
-                                          _removeMember(uid, email),
+                                          _removeMember(uid, name),
                                     ),
                                 ],
                               )

@@ -2,9 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../services/auth_service.dart';
 import '../services/team_service.dart';
-import 'login_screen.dart';
+import '../widgets/account_actions.dart';
 import 'team_detail_screen.dart';
 import 'team_setup_screen.dart';
 
@@ -13,7 +12,6 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final authService = AuthService();
     final teamService = TeamService();
 
     return Scaffold(
@@ -21,22 +19,7 @@ class HomeScreen extends StatelessWidget {
         title: const Text('TrenApp'),
         backgroundColor: Colors.indigo,
         foregroundColor: Colors.white,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: 'Odhlásit se',
-            onPressed: () async {
-              await authService.logout();
-              if (context.mounted) {
-                Navigator.pushAndRemoveUntil(
-                  context,
-                  MaterialPageRoute(builder: (_) => const LoginScreen()),
-                  (route) => false,
-                );
-              }
-            },
-          )
-        ],
+        actions: accountActions(),
       ),
       body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         stream: teamService.streamMyTeams(),

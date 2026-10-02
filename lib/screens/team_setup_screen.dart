@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
-import '../services/auth_service.dart';
 import '../services/team_service.dart';
-import 'login_screen.dart';
+import '../widgets/account_actions.dart';
 
 /// Zobrazí se po přihlášení, pokud uživatel není v žádném týmu, a také
 /// když existující uživatel chce vytvořit/připojit se k dalšímu týmu.
@@ -19,7 +18,6 @@ class TeamSetupScreen extends StatefulWidget {
 
 class _TeamSetupScreenState extends State<TeamSetupScreen> {
   final _teamService = TeamService();
-  final _authService = AuthService();
   final _nameController = TextEditingController();
   final _codeController = TextEditingController();
 
@@ -59,17 +57,6 @@ class _TeamSetupScreenState extends State<TeamSetupScreen> {
     }
   }
 
-  Future<void> _logout() async {
-    await _authService.logout();
-    if (mounted) {
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (_) => const LoginScreen()),
-        (route) => false,
-      );
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final canPop = Navigator.of(context).canPop();
@@ -81,19 +68,14 @@ class _TeamSetupScreenState extends State<TeamSetupScreen> {
               title: const Text('Přidat tým'),
               backgroundColor: Colors.indigo,
               foregroundColor: Colors.white,
+              actions: accountActions(),
             )
           : AppBar(
               title: const Text('TrenApp'),
               backgroundColor: Colors.indigo,
               foregroundColor: Colors.white,
               automaticallyImplyLeading: false,
-              actions: [
-                IconButton(
-                  icon: const Icon(Icons.logout),
-                  tooltip: 'Odhlásit se',
-                  onPressed: _logout,
-                ),
-              ],
+              actions: accountActions(),
             ),
       body: SafeArea(
         child: Center(
