@@ -145,7 +145,6 @@ class AuthService {
     }
   }
 
-  /// Pošle na e-mail uživatele odkaz pro obnovení hesla.
   Future<void> sendPasswordReset() async {
     final email = _auth.currentUser?.email;
     if (email == null) throw Exception('Účet nemá e-mail');

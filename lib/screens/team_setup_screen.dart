@@ -44,10 +44,6 @@ class _TeamSetupScreenState extends State<TeamSetupScreen> {
         await _teamService.joinTeamByCode(_codeController.text);
       }
       if (mounted) {
-        // Pokud je obrazovka na vrcholu navigačního zásobníku (přidávání
-        // dalšího týmu z HomeScreen), vrátíme se zpět. Pokud je vykreslená
-        // rovnou jako root (uživatel bez týmu), není co zavírat a RootGate
-        // se sám přepne na HomeScreen.
         Navigator.of(context).maybePop();
       }
     } catch (e) {
@@ -97,7 +93,7 @@ class _TeamSetupScreenState extends State<TeamSetupScreen> {
                 ),
                 const SizedBox(height: 8),
                 const Text(
-                  'Vytvoř nový tým jako trenér, nebo se připoj kódem, který ti dal trenér.',
+                  'Vytvoř nový tým, nebo se připoj kódem, který ti dal trenér.',
                   textAlign: TextAlign.center,
                   style: TextStyle(color: Colors.black54),
                 ),
@@ -128,7 +124,7 @@ class _TeamSetupScreenState extends State<TeamSetupScreen> {
                     textCapitalization: TextCapitalization.words,
                     decoration: const InputDecoration(
                       labelText: 'Název týmu',
-                      hintText: 'např. FC Sokol Praha',
+                      hintText: 'např. AC Sparta Praha',
                       border: OutlineInputBorder(),
                       prefixIcon: Icon(Icons.shield_outlined),
                     ),
@@ -139,7 +135,7 @@ class _TeamSetupScreenState extends State<TeamSetupScreen> {
                     textCapitalization: TextCapitalization.characters,
                     decoration: const InputDecoration(
                       labelText: 'Kód týmu',
-                      hintText: 'např. AB12CD',
+                      hintText: 'např. AB12CD34',
                       border: OutlineInputBorder(),
                       prefixIcon: Icon(Icons.vpn_key_outlined),
                     ),

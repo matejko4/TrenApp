@@ -167,14 +167,18 @@ TrenApp/
 │   ├── screens/
 │   │   ├── root_gate.dart           – rozcestník podle stavu přihlášení
 │   │   ├── login_screen.dart        – přihlášení a registrace
-│   │   ├── name_setup_screen.dart   – zadání / změna jména
+│   │   ├── name_setup_screen.dart   – zadání jména po prvním přihlášení
 │   │   ├── team_setup_screen.dart   – založení týmu / připojení kódem
 │   │   ├── home_screen.dart         – přehled týmů uživatele
-│   │   └── team_detail_screen.dart  – detail týmu a správa členů
+│   │   ├── team_detail_screen.dart  – detail týmu a správa členů
+│   │   └── account_settings_screen.dart – nastavení účtu (jméno, heslo)
 │   │
-│   └── services/
-│       ├── auth_service.dart        – přihlášení, registrace, odhlášení
-│       └── team_service.dart        – práce s týmy a členy
+│   ├── services/
+│   │   ├── auth_service.dart        – přihlášení, registrace, správa účtu
+│   │   └── team_service.dart        – práce s týmy a členy
+│   │
+│   └── widgets/
+│       └── account_actions.dart     – tlačítka nastavení účtu a odhlášení v horní liště
 │
 ├── test/
 │
@@ -412,7 +416,7 @@ flutter pub get
 
 ### Napojení na Firebase
 
-Soubor `lib/firebase_options.dart` není součástí repozitáře, je potřeba ho vygenerovat:
+Soubory `lib/firebase_options.dart` a `android/app/google-services.json` nejsou součástí repozitáře, je potřeba je vygenerovat:
 
 ```
 dart pub global activate flutterfire_cli
@@ -534,3 +538,52 @@ Rozšíření budou implementována pouze v případě, že budou dokončeny vš
 Výsledkem projektu bude kompletní mobilní aplikace, která sportovnímu oddílu umožní spravovat týmy, plánovat společné i individuální tréninky v kalendáři, sledovat docházku a plnění tréninků a komunikovat mezi trenéry a hráči.
 
 Projekt bude navržen tak, aby byl použitelný například pro školní sportovní kroužek nebo menší sportovní klub.
+
+## 21. Zdroje a dokumentace
+
+Při vývoji aplikace jsem vycházel z oficiálních dokumentací a návodů.
+
+### Flutter a Dart
+
+- [Flutter – dokumentace](https://docs.flutter.dev) – základ celé aplikace
+- [Flutter – nastavení vývoje pro Android](https://docs.flutter.dev/platform-integration/android/setup)
+- [Flutter Cookbook](https://docs.flutter.dev/cookbook) – hotové ukázky běžných úloh (formuláře, navigace, seznamy)
+- [Flutter – navigace mezi obrazovkami](https://docs.flutter.dev/ui/navigation) – `Navigator.push`, `pushAndRemoveUntil`
+- [Flutter – Material widgety](https://docs.flutter.dev/ui/widgets/material) – `Scaffold`, `AppBar`, `ListTile`, `AlertDialog`
+- [StreamBuilder (API)](https://api.flutter.dev/flutter/widgets/StreamBuilder-class.html) – živé zobrazení dat z Firestore
+- [Dart – dokumentace jazyka](https://dart.dev/guides)
+- [Material Design 3](https://m3.material.io) – vzhled a zásady návrhu UI
+
+### Firebase
+
+- [Přidání Firebase do Flutter aplikace (FlutterFire CLI)](https://firebase.google.com/docs/flutter/setup)
+- [FlutterFire – přehled pluginů](https://firebase.flutter.dev)
+- [Firebase Authentication – začínáme](https://firebase.google.com/docs/auth/flutter/start) – registrace a přihlášení e-mailem
+- [Firebase Authentication – správa uživatelů](https://firebase.google.com/docs/auth/flutter/manage-users) – změna jména, změna hesla, opětovné ověření, reset hesla
+- [Firebase Authentication – přihlášení přes Google](https://firebase.google.com/docs/auth/flutter/federated-auth)
+- [Cloud Firestore – dokumentace](https://firebase.google.com/docs/firestore)
+- [Cloud Firestore – datový model](https://firebase.google.com/docs/firestore/data-model) – kolekce, dokumenty, podkolekce
+- [Cloud Firestore – realtime aktualizace](https://firebase.google.com/docs/firestore/query-data/listen)
+- [Cloud Firestore – transakce a dávkové zápisy](https://firebase.google.com/docs/firestore/manage-data/transactions) – např. propsání jména do všech týmů najednou
+- [Firestore Security Rules – začínáme](https://firebase.google.com/docs/firestore/security/get-started)
+- [Firestore Security Rules – podmínky a přístup k dalším dokumentům](https://firebase.google.com/docs/firestore/security/rules-conditions) – `get()`, `exists()`, kontrola rolí
+- [Firebase API klíče](https://firebase.google.com/docs/projects/api-keys) – proč klíče nejsou tajné a jak je omezit
+- [Firebase CLI](https://firebase.google.com/docs/cli) – nasazení bezpečnostních pravidel
+
+### Použité balíčky (pub.dev)
+
+- [firebase_core](https://pub.dev/packages/firebase_core)
+- [firebase_auth](https://pub.dev/packages/firebase_auth)
+- [cloud_firestore](https://pub.dev/packages/cloud_firestore)
+- [google_sign_in](https://pub.dev/packages/google_sign_in)
+
+### Nástroje
+
+- [Android Studio](https://developer.android.com/studio) – Android SDK a emulátor
+- [Visual Studio Code](https://code.visualstudio.com/docs) – vývojové prostředí
+- [Git – dokumentace](https://git-scm.com/doc)
+- [gitignore – dokumentace](https://git-scm.com/docs/gitignore)
+
+### Umělá inteligence
+
+- [Claude Code](https://claude.com/claude-code) (Anthropic) – AI asistent, který jsem při vývoji používal k návrhu a úpravám části kódu (např. nastavení účtu, sdílená tlačítka v horní liště), k hledání chyb a ke kontrole bezpečnosti repozitáře. Vygenerovaný kód jsem procházel a upravoval.
