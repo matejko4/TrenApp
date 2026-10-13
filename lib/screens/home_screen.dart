@@ -4,8 +4,8 @@ import 'package:flutter/services.dart';
 
 import '../services/team_service.dart';
 import '../widgets/account_actions.dart';
+import '../widgets/app_bottom_bar.dart';
 import 'team_detail_screen.dart';
-import 'team_setup_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -19,7 +19,7 @@ class HomeScreen extends StatelessWidget {
         title: const Text('TrenApp'),
         backgroundColor: Colors.indigo,
         foregroundColor: Colors.white,
-        actions: accountActions(),
+        actions: const [LogoutButton()],
       ),
       body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         stream: teamService.streamMyTeams(),
@@ -99,18 +99,7 @@ class HomeScreen extends StatelessWidget {
           );
         },
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: Colors.indigo,
-        foregroundColor: Colors.white,
-        icon: const Icon(Icons.add),
-        label: const Text('Další tým'),
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const TeamSetupScreen()),
-          );
-        },
-      ),
+      bottomNavigationBar: const AppBottomBar(current: AppTab.home),
     );
   }
 }

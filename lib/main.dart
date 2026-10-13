@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'screens/root_gate.dart';
@@ -19,6 +20,11 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'TrenApp',
       debugShowCheckedModeBanner: false,
+      // Čeština pro systémové widgety – kalendář při výběru data začíná
+      // pondělím a čas se vybírá ve 24h formátu.
+      localizationsDelegates: GlobalMaterialLocalizations.delegates,
+      supportedLocales: const [Locale('cs')],
+      locale: const Locale('cs'),
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
         useMaterial3: true,

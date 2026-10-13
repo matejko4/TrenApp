@@ -89,6 +89,54 @@ service cloud.firestore {
           !existsAfter(/databases/$(database)/documents/teams/$(teamId))
         );
       }
+
+      // teams/{teamId}/trainings/{trainingId} – tréninky týmu (viz
+      // TrainingService). Odpovědi hráčů jsou v mapě responses (uid -> odpověď).
+      match /trainings/{trainingId} {
+        function isValidTraining(data) {
+          return data.kind in ['team', 'individual'] &&
+            data.title is string && data.title.size() > 0 && data.title.size() <= 100 &&
+            data.type in ['run', 'strength', 'technique', 'recovery', 'other'] &&
+            data.startAt is timestamp &&
+            (data.get('endAt', null) == null || data.endAt is timestamp) &&
+            data.assignedTo is list &&
+            (data.kind == 'team' || data.assignedTo.size() > 0) &&
+            data.responses is map;
+        }
+
+        // Hráč smí v tréninku změnit jen svůj vlastní klíč v responses:
+        // u společného tréninku BUDU/NEBUDU ('yes'/'no'), u individuálního
+        // jen 'done' a jen pokud je mu trénink zadaný. Smazání klíče
+        // (zpět na „bez odpovědi“ / „naplánovaný“) je taky povolené.
+        function isOwnResponseUpdate() {
+          let uid = request.auth.uid;
+          let after = request.resource.data;
+          return isTeamMember(teamId) &&
+            after.diff(resource.data).affectedKeys().hasOnly(['responses']) &&
+            after.responses.diff(resource.data.responses).affectedKeys().hasOnly([uid]) &&
+            (!(uid in after.responses) ||
+              (after.kind == 'team' && after.responses[uid] in ['yes', 'no']) ||
+              (after.kind == 'individual' && uid in after.assignedTo &&
+                after.responses[uid] == 'done'));
+        }
+
+        // Trenér vidí všechny tréninky týmu, hráč jen společné a individuální
+        // zadané jemu. Pravidla nejsou filtr – hráčské dotazy v TrainingService
+        // proto samy omezují výsledky (kind == 'team', resp. assignedTo
+        // array-contains uid), jinak by je Firestore celé zamítl.
+        allow read: if isTeamCoach(teamId) || (isTeamMember(teamId) && (
+          resource.data.kind == 'team' || request.auth.uid in resource.data.assignedTo
+        ));
+        allow create: if isTeamCoach(teamId) &&
+          isValidTraining(request.resource.data) &&
+          request.resource.data.createdBy == request.auth.uid &&
+          request.resource.data.responses.size() == 0;
+        allow update: if (isTeamCoach(teamId) && isValidTraining(request.resource.data)) ||
+          isOwnResponseUpdate();
+        // Mazání i při rušení celého týmu (TeamService.deleteTeam) – pravidla
+        // dávky se vyhodnocují vůči stavu před ní, takže trenér tu pořád je.
+        allow delete: if isTeamCoach(teamId);
+      }
     }
 
     // team_codes/{code} – vyhledávací mapa "pozvánkový kód -> tým", doc id

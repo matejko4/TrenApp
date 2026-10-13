@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/team_service.dart';
 import '../widgets/account_actions.dart';
+import '../widgets/app_bottom_bar.dart';
 
 /// Zobrazí se po přihlášení, pokud uživatel není v žádném týmu, a také
 /// když existující uživatel chce vytvořit/připojit se k dalšímu týmu.
@@ -64,7 +65,7 @@ class _TeamSetupScreenState extends State<TeamSetupScreen> {
               title: const Text('Přidat tým'),
               backgroundColor: Colors.indigo,
               foregroundColor: Colors.white,
-              actions: accountActions(),
+              actions: const [LogoutButton()],
             )
           : AppBar(
               title: const Text('TrenApp'),
@@ -73,6 +74,10 @@ class _TeamSetupScreenState extends State<TeamSetupScreen> {
               automaticallyImplyLeading: false,
               actions: accountActions(),
             ),
+      // Uživatel bez týmu (obrazovka z RootGate) spodní lištu nemá –
+      // Domů i kalendář by ho stejně vrátily sem.
+      bottomNavigationBar:
+          canPop ? const AppBottomBar(current: AppTab.addTeam) : null,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(

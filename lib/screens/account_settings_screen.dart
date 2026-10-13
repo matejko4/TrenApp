@@ -2,11 +2,17 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../services/auth_service.dart';
+import '../widgets/app_bottom_bar.dart';
 import 'login_screen.dart';
 
 /// Nastavení účtu: změna jména, hesla a odhlášení.
+///
+/// [showBottomBar] je false, když se nastavení otevírá z obrazovky
+/// uživatele bez týmu (viz TeamSetupScreen), kde spodní lišta není.
 class AccountSettingsScreen extends StatelessWidget {
-  const AccountSettingsScreen({super.key});
+  const AccountSettingsScreen({super.key, this.showBottomBar = true});
+
+  final bool showBottomBar;
 
   @override
   Widget build(BuildContext context) {
@@ -111,6 +117,9 @@ class AccountSettingsScreen extends StatelessWidget {
           );
         },
       ),
+      bottomNavigationBar: showBottomBar
+          ? const AppBottomBar(current: AppTab.account)
+          : null,
     );
   }
 

@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import '../services/team_service.dart';
 import '../widgets/account_actions.dart';
+import '../widgets/app_bottom_bar.dart';
 
 /// Detail týmu – roster členů. Trenér zde navíc může měnit role členů,
 /// odebírat je z týmu a tým celý zrušit.
@@ -150,8 +151,16 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
               tooltip: 'Zrušit tým',
               onPressed: _deleting ? null : _deleteTeam,
             ),
-          ...accountActions(),
+          const LogoutButton(),
         ],
+      ),
+      bottomNavigationBar: AppBottomBar(
+        current: AppTab.home,
+        team: CurrentTeam(
+          id: widget.teamId,
+          name: widget.teamName,
+          isCoach: widget.isCoach,
+        ),
       ),
       body: _deleting
           ? const Center(child: CircularProgressIndicator())

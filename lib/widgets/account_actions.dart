@@ -4,8 +4,9 @@ import '../screens/account_settings_screen.dart';
 import '../screens/login_screen.dart';
 import '../services/auth_service.dart';
 
-/// Tlačítka do AppBaru (nastavení účtu + odhlášení), společná pro všechny
-/// obrazovky kromě přihlášení a samotného nastavení účtu.
+/// Tlačítka do AppBaru (nastavení účtu + odhlášení) pro obrazovky bez
+/// spodní lišty. Obrazovky se spodní lištou (AppBottomBar) mají nastavení
+/// účtu v liště, a do AppBaru proto dávají jen [LogoutButton].
 /// Použití: `actions: [..., ...accountActions()]`.
 List<Widget> accountActions() => const [
       AccountSettingsButton(),
@@ -22,7 +23,9 @@ class AccountSettingsButton extends StatelessWidget {
       tooltip: 'Nastavení účtu',
       onPressed: () => Navigator.push(
         context,
-        MaterialPageRoute(builder: (_) => const AccountSettingsScreen()),
+        MaterialPageRoute(
+          builder: (_) => const AccountSettingsScreen(showBottomBar: false),
+        ),
       ),
     );
   }

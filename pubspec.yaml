@@ -30,6 +30,9 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  # České texty systémových widgetů (výběr data a času, tlačítka dialogů).
+  flutter_localizations:
+    sdk: flutter
 
   cupertino_icons: ^1.0.8
   firebase_core: ^3.0.0

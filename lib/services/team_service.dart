@@ -9,6 +9,19 @@ class TeamRole {
   static const player = 'player';
 }
 
+/// Hráči (bez trenérů) ze soupisky týmu jako uid -> jméno. Starší
+/// členství nemusí mít jméno uložené – pak se použije aspoň e-mail.
+Map<String, String> playerNames(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> members) {
+  return {
+    for (final doc in members)
+      if ((doc.data()['role'] as String? ?? TeamRole.player) == TeamRole.player)
+        doc.id: doc.data()['name'] as String? ??
+            doc.data()['email'] as String? ??
+            doc.id,
+  };
+}
+
 /// Stará se o vytváření týmů, připojování k týmům kódem a čtení
 /// týmů, ve kterých je aktuální uživatel členem.
 ///
@@ -293,8 +306,11 @@ class TeamService {
   }
 
   /// Úplně zruší tým – smaže samotný tým, celý roster (a jeho index u
-  /// každého člena), pozvánkový kód i zamluvený název týmu. Smí jen
-  /// trenér týmu. Operace je nevratná.
+  /// každého člena), tréninky, pozvánkový kód i zamluvený název týmu.
+  /// Smí jen trenér týmu. Operace je nevratná.
+  ///
+  /// Podkolekce (members, trainings) Firestore se smazáním dokumentu týmu
+  /// sám nesmaže, proto se mažou ručně ve stejné dávce.
   Future<void> deleteTeam(String teamId) async {
     final teamRef = _db.collection('teams').doc(teamId);
     final teamDoc = await teamRef.get();
@@ -305,8 +321,12 @@ class TeamService {
     final name = data['name'] as String?;
 
     final membersSnap = await teamRef.collection('members').get();
+    final trainingsSnap = await teamRef.collection('trainings').get();
 
     final batch = _db.batch();
+    for (final trainingDoc in trainingsSnap.docs) {
+      batch.delete(trainingDoc.reference);
+    }
     for (final memberDoc in membersSnap.docs) {
       batch.delete(memberDoc.reference);
       batch.delete(

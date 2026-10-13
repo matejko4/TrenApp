@@ -48,7 +48,7 @@ Trenér bude mít rozšířená oprávnění v rámci svého týmu:
 - odebírat členy z týmu,
 - zrušit celý tým,
 - zadávat společné tréninky pro celý tým (den, čas, místo, popis),
-- zadávat individuální tréninky pro konkrétní hráče,
+- zadávat individuální tréninky pro vybrané hráče (nebo všechny najednou),
 - upravovat a rušit zadané tréninky,
 - vidět, kdo na společný trénink přijde a kdo ne,
 - sledovat plnění individuálních tréninků,
@@ -73,7 +73,7 @@ Pravidla týmů:
 Tréninky zadává trenér. Každý trénink je naplánovaný na konkrétní den a čas a je jednoho ze dvou druhů:
 
 - **Společný trénink** – platí pro celý tým (např. týmový trénink na hřišti).
-- **Individuální trénink** – zadaný konkrétnímu hráči (např. běh, posilování).
+- **Individuální trénink** – zadaný vybraným hráčům (např. běh, posilování). Trenér při zadávání zaškrtne buď všechny hráče, nebo jen ty, pro které má trénink platit. Kalendář se tak může pro každého hráče lišit.
 
 Každý trénink obsahuje:
 
@@ -84,7 +84,7 @@ Každý trénink obsahuje:
 - čas začátku (a případně konce),
 - místo (u společného tréninku),
 - popis / zadání od trenéra,
-- hráče, kterému je určen (u individuálního tréninku).
+- hráče, kterým je určen (u individuálního tréninku).
 
 Typy tréninků:
 
@@ -117,7 +117,7 @@ Individuální trénink má jeden ze stavů:
 - **Splněný** – hráč trénink odcvičil.
 - **Nesplněný** – termín tréninku uplynul a trénink nebyl splněn.
 
-Hráč může individuální trénink (např. běh) zaznamenat pomocí GPS, případně jej označit jako splněný ručně. Trenér tak má přehled o tom, jak jednotliví hráči plní zadané tréninky.
+Individuální trénink jde splnit do konce dne, na který je zadaný. Hráč ho označí jako splněný ručně, u tréninku typu **Běh** je navíc tlačítko **Začít běh**, které otevře obrazovku pro záznam běhu pomocí GPS (podobně jako aplikace Adidas Running). Trenér tak má přehled o tom, jak jednotliví hráči plní zadané tréninky.
 
 ## 6. Technologie
 
@@ -171,14 +171,26 @@ TrenApp/
 │   │   ├── team_setup_screen.dart   – založení týmu / připojení kódem
 │   │   ├── home_screen.dart         – přehled týmů uživatele
 │   │   ├── team_detail_screen.dart  – detail týmu a správa členů
+│   │   ├── team_calendar_screen.dart – kalendář tréninků týmu
+│   │   ├── training_detail_screen.dart – detail tréninku a přehled odpovědí
+│   │   ├── training_form_screen.dart – zadání / úprava tréninku (trenér)
+│   │   ├── run_screen.dart          – záznam běhu (připravuje se)
+│   │   ├── notifications_screen.dart – oznámení (připravuje se)
 │   │   └── account_settings_screen.dart – nastavení účtu (jméno, heslo)
 │   │
 │   ├── services/
 │   │   ├── auth_service.dart        – přihlášení, registrace, správa účtu
-│   │   └── team_service.dart        – práce s týmy a členy
+│   │   ├── team_service.dart        – práce s týmy a členy
+│   │   └── training_service.dart    – tréninky a odpovědi hráčů
+│   │
+│   ├── utils/
+│   │   └── date_format.dart         – české formátování data a času
 │   │
 │   └── widgets/
-│       └── account_actions.dart     – tlačítka nastavení účtu a odhlášení v horní liště
+│       ├── account_actions.dart     – tlačítka nastavení účtu a odhlášení v horní liště
+│       ├── app_bottom_bar.dart      – spodní navigační lišta
+│       ├── training_widgets.dart    – karta tréninku, BUDU / NEBUDU, stavy
+│       └── coming_soon.dart         – zástupný obsah „Připravujeme“
 │
 ├── test/
 │
@@ -259,36 +271,28 @@ Obsahuje:
 - ID týmu
 - autora
 
-### Plánované kolekce
-
-#### teams/{teamId}/trainings/{trainingId}
+### teams/{teamId}/trainings/{trainingId}
 
 Trénink zadaný trenérem.
 
 Obsahuje:
 
-- druh (společný / individuální)
+- druh (`team` – společný / `individual` – individuální)
 - název
-- typ tréninku
+- typ tréninku (`run`, `strength`, `technique`, `recovery`, `other`)
 - datum a čas začátku / konce
-- místo
+- místo (pouze u společného tréninku)
 - popis
-- hráče (pouze u individuálního tréninku)
-- stav – naplánovaný / splněný / nesplněný (pouze u individuálního tréninku)
+- seznam hráčů, kterým je trénink zadaný (pouze u individuálního tréninku)
+- odpovědi hráčů – mapa `uid -> odpověď`: `yes` / `no` (BUDU / NEBUDU u společného tréninku) nebo `done` (splněno u individuálního tréninku)
 - autora (trenéra)
 - datum vytvoření
 
-#### teams/{teamId}/trainings/{trainingId}/attendance/{uid}
+Odpovědi jsou přímo v dokumentu tréninku, aby trenér viděl přehled účasti celého kalendáře bez dalšího čtení pro každý trénink. Bezpečnostní pravidla hráči dovolí změnit jen jeho vlastní odpověď. Stav individuálního tréninku se neukládá zvlášť – „splněný“ je odpověď `done`, „nesplněný“ znamená, že den tréninku uplynul bez splnění.
 
-Odpověď hráče na společný trénink.
+Hráč smí číst jen společné tréninky a individuální tréninky zadané jemu. Aplikace proto pro hráče posílá dva dotazy (podle druhu tréninku a podle seznamu hráčů), které potřebují složené indexy definované v `firestore.indexes.json`.
 
-Obsahuje:
-
-- ID hráče
-- odpověď (BUDU / NEBUDU)
-- datum odpovědi
-
-#### Další
+### Plánované kolekce
 
 - **activities** – záznamy tréninků z GPS (délka, vzdálenost, tempo, trasa),
 - **chats / messages** – zprávy v chatu týmu.
@@ -423,11 +427,13 @@ dart pub global activate flutterfire_cli
 flutterfire configure
 ```
 
-### Nasazení bezpečnostních pravidel
+### Nasazení bezpečnostních pravidel a indexů
 
 ```
-firebase deploy --only firestore:rules
+firebase deploy --only firestore
 ```
+
+Nasadí bezpečnostní pravidla (`firestore.rules`) i složené indexy (`firestore.indexes.json`), které potřebuje kalendář tréninků. Vytvoření indexů může po nasazení trvat několik minut.
 
 ### Spuštění aplikace
 
@@ -550,6 +556,7 @@ Při vývoji aplikace jsem vycházel z oficiálních dokumentací a návodů.
 - [Flutter Cookbook](https://docs.flutter.dev/cookbook) – hotové ukázky běžných úloh (formuláře, navigace, seznamy)
 - [Flutter – navigace mezi obrazovkami](https://docs.flutter.dev/ui/navigation) – `Navigator.push`, `pushAndRemoveUntil`
 - [Flutter – Material widgety](https://docs.flutter.dev/ui/widgets/material) – `Scaffold`, `AppBar`, `ListTile`, `AlertDialog`
+- [Flutter – internacionalizace](https://docs.flutter.dev/ui/accessibility-and-internationalization/internationalization) – české texty systémových widgetů (výběr data a času)
 - [StreamBuilder (API)](https://api.flutter.dev/flutter/widgets/StreamBuilder-class.html) – živé zobrazení dat z Firestore
 - [Dart – dokumentace jazyka](https://dart.dev/guides)
 - [Material Design 3](https://m3.material.io) – vzhled a zásady návrhu UI
@@ -567,6 +574,8 @@ Při vývoji aplikace jsem vycházel z oficiálních dokumentací a návodů.
 - [Cloud Firestore – transakce a dávkové zápisy](https://firebase.google.com/docs/firestore/manage-data/transactions) – např. propsání jména do všech týmů najednou
 - [Firestore Security Rules – začínáme](https://firebase.google.com/docs/firestore/security/get-started)
 - [Firestore Security Rules – podmínky a přístup k dalším dokumentům](https://firebase.google.com/docs/firestore/security/rules-conditions) – `get()`, `exists()`, kontrola rolí
+- [Firestore Security Rules – bezpečné dotazy](https://firebase.google.com/docs/firestore/security/rules-query) – pravidla nejsou filtr, dotaz musí sám omezit výsledky
+- [Cloud Firestore – indexy](https://firebase.google.com/docs/firestore/query-data/indexing) – složené indexy pro dotazy kalendáře
 - [Firebase API klíče](https://firebase.google.com/docs/projects/api-keys) – proč klíče nejsou tajné a jak je omezit
 - [Firebase CLI](https://firebase.google.com/docs/cli) – nasazení bezpečnostních pravidel
 
