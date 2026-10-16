@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
-import 'root_gate.dart';
+import '../utils/error_text.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -34,15 +34,11 @@ class _LoginScreenState extends State<LoginScreen> {
           _passwordController.text.trim(),
         );
       }
-      if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const RootGate()),
-        );
-      }
+      // Dál se nikam nenaviguje – RootGate po přihlášení sám přepne na
+      // další obrazovku díky streamu authStateChanges.
     } catch (e) {
       if (mounted) {
-        setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
+        setState(() => _error = errorText(e));
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -52,15 +48,9 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _googleSignIn() async {
     setState(() { _loading = true; _error = ''; });
     try {
-      final cred = await _authService.signInWithGoogle();
-      if (cred != null && mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const RootGate()),
-        );
-      }
+      await _authService.signInWithGoogle();
     } catch (e) {
-      if (mounted) setState(() => _error = e.toString());
+      if (mounted) setState(() => _error = errorText(e));
     } finally {
       if (mounted) setState(() => _loading = false);
     }

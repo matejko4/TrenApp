@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../screens/run_screen.dart';
 import '../services/training_service.dart';
 import '../utils/date_format.dart';
+import '../utils/error_text.dart';
 
 // Widgety pro zobrazení tréninku sdílené kalendářem a detailem tréninku.
 
@@ -251,7 +252,7 @@ class TrainingPlayerActions extends StatelessWidget {
     } catch (e) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+        SnackBar(content: Text(errorText(e))),
       );
     }
   }

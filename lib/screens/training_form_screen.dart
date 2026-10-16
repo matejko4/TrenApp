@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../services/team_service.dart';
 import '../services/training_service.dart';
 import '../utils/date_format.dart';
+import '../utils/error_text.dart';
 import '../widgets/training_widgets.dart';
 
 /// Formulář pro zadání nového tréninku, nebo úpravu existujícího
@@ -111,7 +112,7 @@ class _TrainingFormScreenState extends State<TrainingFormScreen> {
       if (mounted) {
         setState(() {
           _loading = false;
-          _error = e.toString().replaceFirst('Exception: ', '');
+          _error = errorText(e);
         });
       }
     }
@@ -124,8 +125,6 @@ class _TrainingFormScreenState extends State<TrainingFormScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(isEdit ? 'Upravit trénink' : 'Nový trénink'),
-        backgroundColor: Colors.indigo,
-        foregroundColor: Colors.white,
       ),
       body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         stream: _members,

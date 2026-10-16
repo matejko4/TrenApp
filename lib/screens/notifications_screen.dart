@@ -13,8 +13,6 @@ class NotificationsScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Oznámení'),
-        backgroundColor: Colors.indigo,
-        foregroundColor: Colors.white,
         actions: const [LogoutButton()],
       ),
       body: const ComingSoon(

@@ -2,8 +2,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../services/auth_service.dart';
+import '../utils/error_text.dart';
+import '../widgets/account_actions.dart';
 import '../widgets/app_bottom_bar.dart';
-import 'login_screen.dart';
+import '../widgets/common.dart';
 
 /// Nastavení účtu: změna jména, hesla a odhlášení.
 ///
@@ -21,8 +23,6 @@ class AccountSettingsScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Nastavení účtu'),
-        backgroundColor: Colors.indigo,
-        foregroundColor: Colors.white,
       ),
       body: StreamBuilder<User?>(
         stream: authService.userChanges,
@@ -61,7 +61,10 @@ class AccountSettingsScreen extends StatelessWidget {
                 style: const TextStyle(color: Colors.black54),
               ),
               const SizedBox(height: 24),
-              const _SectionHeader('Profil'),
+              const SectionTitle(
+                'Profil',
+                padding: EdgeInsets.fromLTRB(16, 16, 16, 4),
+              ),
               ListTile(
                 leading: const Icon(Icons.badge_outlined),
                 title: const Text('Změnit jméno'),
@@ -72,7 +75,10 @@ class AccountSettingsScreen extends StatelessWidget {
                   builder: (_) => const EditNameDialog(),
                 ),
               ),
-              const _SectionHeader('Zabezpečení'),
+              const SectionTitle(
+                'Zabezpečení',
+                padding: EdgeInsets.fromLTRB(16, 16, 16, 4),
+              ),
               if (hasPassword) ...[
                 ListTile(
                   leading: const Icon(Icons.lock_outline),
@@ -102,16 +108,7 @@ class AccountSettingsScreen extends StatelessWidget {
                   'Odhlásit se',
                   style: TextStyle(color: Colors.red),
                 ),
-                onTap: () async {
-                  await authService.logout();
-                  if (context.mounted) {
-                    Navigator.pushAndRemoveUntil(
-                      context,
-                      MaterialPageRoute(builder: (_) => const LoginScreen()),
-                      (route) => false,
-                    );
-                  }
-                },
+                onTap: () => logOut(context),
               ),
             ],
           );
@@ -136,30 +133,9 @@ class AccountSettingsScreen extends StatelessWidget {
       );
     } catch (e) {
       messenger.showSnackBar(
-        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+        SnackBar(content: Text(errorText(e))),
       );
     }
-  }
-}
-
-class _SectionHeader extends StatelessWidget {
-  final String title;
-  const _SectionHeader(this.title);
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-      child: Text(
-        title.toUpperCase(),
-        style: const TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.bold,
-          color: Colors.indigo,
-          letterSpacing: 1,
-        ),
-      ),
-    );
   }
 }
 
@@ -199,7 +175,7 @@ class _EditNameDialogState extends State<EditNameDialog> {
       if (mounted) {
         setState(() {
           _loading = false;
-          _error = e.toString().replaceFirst('Exception: ', '');
+          _error = errorText(e);
         });
       }
     }
@@ -291,7 +267,7 @@ class _ChangePasswordDialogState extends State<ChangePasswordDialog> {
       if (mounted) {
         setState(() {
           _loading = false;
-          _error = e.toString().replaceFirst('Exception: ', '');
+          _error = errorText(e);
         });
       }
     }

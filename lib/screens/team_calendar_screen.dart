@@ -6,6 +6,7 @@ import '../services/training_service.dart';
 import '../utils/date_format.dart';
 import '../widgets/account_actions.dart';
 import '../widgets/app_bottom_bar.dart';
+import '../widgets/common.dart';
 import '../widgets/training_widgets.dart';
 import 'training_detail_screen.dart';
 import 'training_form_screen.dart';
@@ -50,8 +51,6 @@ class _TeamCalendarScreenState extends State<TeamCalendarScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text('Kalendář – ${widget.teamName}'),
-        backgroundColor: Colors.indigo,
-        foregroundColor: Colors.white,
         actions: const [LogoutButton()],
       ),
       body: Column(
@@ -157,7 +156,10 @@ class _TeamCalendarScreenState extends State<TeamCalendarScreen> {
           final start = training.startAt;
           final day = DateTime(start.year, start.month, start.day);
           if (day != lastDay) {
-            children.add(_DayHeader(formatDayHeader(day)));
+            children.add(SectionTitle(
+              formatDayHeader(day),
+              padding: const EdgeInsets.fromLTRB(4, 16, 4, 8),
+            ));
             lastDay = day;
           }
           children.add(
@@ -186,28 +188,6 @@ class _TeamCalendarScreenState extends State<TeamCalendarScreen> {
           children: children,
         );
       },
-    );
-  }
-}
-
-class _DayHeader extends StatelessWidget {
-  const _DayHeader(this.title);
-
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(4, 16, 4, 8),
-      child: Text(
-        title.toUpperCase(),
-        style: const TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.bold,
-          color: Colors.indigo,
-          letterSpacing: 1,
-        ),
-      ),
     );
   }
 }
