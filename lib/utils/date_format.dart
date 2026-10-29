@@ -10,6 +10,25 @@ const _weekdays = [
   'neděle',
 ];
 
+const _weekdaysShort = ['Po', 'Út', 'St', 'Čt', 'Pá', 'So', 'Ne'];
+
+/// Zkratka dne v týdnu, např. „Po“.
+String formatWeekdayShort(DateTime date) => _weekdaysShort[date.weekday - 1];
+
+/// Pondělí týdne, do kterého patří [date] (o půlnoci).
+DateTime startOfWeek(DateTime date) =>
+    DateTime(date.year, date.month, date.day - (date.weekday - 1));
+
+/// Rozsah týdne od pondělí [monday], např. „2.–8. 11.“, nebo
+/// „30. 11.–6. 12.“, když týden přechází do dalšího měsíce.
+String formatWeekRange(DateTime monday) {
+  final sunday = DateTime(monday.year, monday.month, monday.day + 6);
+  final start = monday.month == sunday.month
+      ? '${monday.day}.'
+      : '${monday.day}. ${monday.month}.';
+  return '$start–${sunday.day}. ${sunday.month}.';
+}
+
 /// Např. „17:05“.
 String formatTime(DateTime time) =>
     '${time.hour}:${time.minute.toString().padLeft(2, '0')}';

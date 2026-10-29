@@ -84,7 +84,8 @@ TrainingStatusLabel individualStatusLabel(IndividualStatus status) =>
     };
 
 /// Odpověď hráče na společný trénink.
-TrainingStatusLabel teamResponseLabel(String? response) => switch (response) {
+TrainingStatusLabel teamResponseLabel(TrainingResponse? response) =>
+    switch (response) {
       TrainingResponse.yes => const TrainingStatusLabel(
           icon: Icons.check_circle, color: Colors.green, label: 'Budu'),
       TrainingResponse.no => const TrainingStatusLabel(
@@ -246,7 +247,7 @@ class TrainingPlayerActions extends StatelessWidget {
   final String teamId;
   final Training training;
 
-  Future<void> _respond(BuildContext context, String? response) async {
+  Future<void> _respond(BuildContext context, TrainingResponse? response) async {
     try {
       await TrainingService().respond(teamId, training.id, response);
     } catch (e) {
@@ -265,7 +266,7 @@ class TrainingPlayerActions extends StatelessWidget {
         : _buildIndividual(context, training.statusOf(uid));
   }
 
-  Widget _buildTeam(BuildContext context, String? response) {
+  Widget _buildTeam(BuildContext context, TrainingResponse? response) {
     if (!training.canRespond) return teamResponseLabel(response);
 
     return Row(

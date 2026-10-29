@@ -109,7 +109,7 @@ class _TeamCalendarScreenState extends State<TeamCalendarScreen> {
               ),
             )
           : null,
-      bottomNavigationBar: const AppBottomBar(current: AppTab.calendar),
+      bottomNavigationBar: const AppBottomBar(current: AppTab.home),
     );
   }
 

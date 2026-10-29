@@ -45,6 +45,25 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  Future<void> _forgotPassword() async {
+    final email = await showDialog<String>(
+      context: context,
+      builder: (_) =>
+          ForgotPasswordDialog(initialEmail: _emailController.text.trim()),
+    );
+    if (email == null || !mounted) return;
+    // Firebase z bezpečnostních důvodů neprozradí, jestli účet s tímto
+    // e-mailem existuje (ochrana proti zjišťování e-mailů) – proto „pokud“.
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Pokud k e-mailu $email existuje účet, poslali jsme na něj odkaz '
+          'pro nastavení nového hesla.',
+        ),
+      ),
+    );
+  }
+
   Future<void> _googleSignIn() async {
     setState(() { _loading = true; _error = ''; });
     try {
@@ -105,6 +124,14 @@ class _LoginScreenState extends State<LoginScreen> {
                   prefixIcon: Icon(Icons.lock),
                 ),
               ),
+              if (_isLogin)
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: _loading ? null : _forgotPassword,
+                    child: const Text('Zapomenuté heslo?'),
+                  ),
+                ),
               if (_error.isNotEmpty) ...[
                 const SizedBox(height: 12),
                 Text(_error, style: const TextStyle(color: Colors.red)),
@@ -145,6 +172,91 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Dialog „Zapomenuté heslo“ – pošle na zadaný e-mail odkaz pro nastavení
+/// nového hesla. Po úspěšném odeslání se zavře a vrátí použitý e-mail.
+class ForgotPasswordDialog extends StatefulWidget {
+  const ForgotPasswordDialog({super.key, required this.initialEmail});
+
+  final String initialEmail;
+
+  @override
+  State<ForgotPasswordDialog> createState() => _ForgotPasswordDialogState();
+}
+
+class _ForgotPasswordDialogState extends State<ForgotPasswordDialog> {
+  final _authService = AuthService();
+  late final _emailController = TextEditingController(text: widget.initialEmail);
+
+  bool _loading = false;
+  String _error = '';
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _send() async {
+    final email = _emailController.text.trim();
+    setState(() {
+      _loading = true;
+      _error = '';
+    });
+    try {
+      await _authService.sendPasswordReset(email);
+      if (mounted) Navigator.of(context).pop(email);
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _error = errorText(e);
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Zapomenuté heslo'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text(
+            'Pošleme ti e-mail s odkazem, přes který si nastavíš nové heslo.',
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _emailController,
+            autofocus: true,
+            keyboardType: TextInputType.emailAddress,
+            autocorrect: false,
+            decoration: const InputDecoration(
+              labelText: 'Email',
+              border: OutlineInputBorder(),
+              prefixIcon: Icon(Icons.email),
+            ),
+          ),
+          if (_error.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text(_error, style: const TextStyle(color: Colors.red)),
+          ],
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: _loading ? null : () => Navigator.of(context).pop(),
+          child: const Text('Zrušit'),
+        ),
+        TextButton(
+          onPressed: _loading ? null : _send,
+          child: const Text('Odeslat'),
+        ),
+      ],
     );
   }
 }

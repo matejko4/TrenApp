@@ -34,7 +34,7 @@ class _TrainingFormScreenState extends State<TrainingFormScreen> {
   late final _descriptionController =
       TextEditingController(text: widget.training?.description);
 
-  late String _kind = widget.training?.kind ?? TrainingKind.team;
+  late TrainingKind _kind = widget.training?.kind ?? TrainingKind.team;
   late TrainingType _type = widget.training?.type ?? TrainingType.technique;
   late DateTime _date = widget.training?.startAt ?? DateTime.now();
   late TimeOfDay _start = widget.training == null
@@ -140,7 +140,7 @@ class _TrainingFormScreenState extends State<TrainingFormScreen> {
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              SegmentedButton<String>(
+              SegmentedButton<TrainingKind>(
                 segments: const [
                   ButtonSegment(
                     value: TrainingKind.team,

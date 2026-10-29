@@ -63,9 +63,10 @@ class AuthService {
     } on FirebaseAuthException catch (e) {
       throw Exception(_authErrorMessage(e));
     }
+    // E-mail se sem nekopíruje – drží ho Firebase Authentication a profil
+    // users/{uid} si může přečíst kterýkoli přihlášený uživatel.
     await _db.collection('users').doc(cred.user!.uid).set({
       'name': trimmedName,
-      'email': email,
       'createdAt': FieldValue.serverTimestamp(),
     });
     await cred.user!.updateDisplayName(trimmedName);
@@ -111,7 +112,6 @@ class AuthService {
       final googleName = cred.user!.displayName?.trim();
       await _db.collection('users').doc(cred.user!.uid).set({
         if (googleName != null && googleName.isNotEmpty) 'name': googleName,
-        'email': cred.user!.email,
         'createdAt': FieldValue.serverTimestamp(),
       });
     }
@@ -167,7 +167,7 @@ class AuthService {
     final batch = _db.batch();
     batch.set(
       _db.collection('users').doc(user.uid),
-      {'name': trimmedName, 'email': user.email},
+      {'name': trimmedName},
       SetOptions(merge: true),
     );
     for (final teamDoc in teamsSnap.docs) {
@@ -217,11 +217,14 @@ class AuthService {
     }
   }
 
-  Future<void> sendPasswordReset() async {
-    final email = _auth.currentUser?.email;
-    if (email == null) throw Exception('Účet nemá e-mail');
+  /// Pošle odkaz pro obnovení hesla na [email] – na přihlašovací obrazovce
+  /// ten, který uživatel zadal, v nastavení účtu (bez parametru) e-mail
+  /// přihlášeného uživatele.
+  Future<void> sendPasswordReset([String? email]) async {
+    final address = (email ?? _auth.currentUser?.email ?? '').trim();
+    if (address.isEmpty) throw Exception('Zadej e-mail');
     try {
-      await _auth.sendPasswordResetEmail(email: email);
+      await _auth.sendPasswordResetEmail(email: address);
     } on FirebaseAuthException catch (e) {
       throw Exception(_authErrorMessage(e));
     }

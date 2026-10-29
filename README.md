@@ -69,7 +69,7 @@ Uživatel může být členem libovolného počtu týmů a v každém z nich mů
 
 Pravidla týmů:
 
-- název týmu musí být unikátní (bez ohledu na velikost písmen a mezery),
+- název týmu nemusí být unikátní – tým se hledá a připojuje podle kódu,
 - každý tým má unikátní osmimístný pozvánkový kód (bez snadno zaměnitelných znaků jako 0/O nebo 1/I),
 - správce týmu nelze změnit na hráče ani odebrat – tým tak nikdy nezůstane bez někoho, kdo ho spravuje,
 - správce může vedení předat jinému členovi týmu (původní správce zůstane trenérem),
@@ -194,8 +194,8 @@ TrenApp/
 │   │   └── date_format.dart         – české formátování data a času
 │   │
 │   └── widgets/
-│       ├── account_actions.dart     – tlačítka nastavení účtu a odhlášení v horní liště
-│       ├── app_bottom_bar.dart      – spodní navigační lišta
+│       ├── account_actions.dart     – tlačítko odhlášení v horní liště
+│       ├── app_bottom_bar.dart      – spodní navigační lišta (Domů, Oznámení, Účet)
 │       ├── training_widgets.dart    – karta tréninku, BUDU / NEBUDU, stavy
 │       └── coming_soon.dart         – zástupný obsah „Připravujeme“
 │
@@ -224,8 +224,9 @@ Uživatel systému.
 Obsahuje:
 
 - jméno (zobrazuje se v aplikaci místo e-mailu)
-- e-mail
 - datum registrace
+
+E-mail se sem neukládá – přihlášení i obnova hesla používají e-mail z účtu ve Firebase Authentication a profil `users/{uid}` si může přečíst kterýkoli přihlášený uživatel.
 
 ### users/{uid}/teams/{teamId}
 
@@ -258,8 +259,9 @@ Obsahuje:
 
 - ID uživatele
 - jméno (kopie z users/{uid}, při změně jména se aktualizuje ve všech týmech)
-- e-mail
 - roli (trenér / hráč)
+
+E-mail se do soupisky neukládá – soupisku čtou všichni členové týmu a pravidla nejdou omezit na jednotlivá pole dokumentu.
 - datum připojení
 
 ### team_codes/{code}
@@ -270,15 +272,6 @@ Obsahuje:
 
 - ID týmu
 - název týmu
-
-### team_names/{normalizedName}
-
-Hlídání unikátnosti názvu týmu. ID dokumentu je normalizovaný název.
-
-Obsahuje:
-
-- ID týmu
-- autora
 
 ### teams/{teamId}/trainings/{trainingId}
 
@@ -383,7 +376,6 @@ Příklad dokumentu člena týmu:
 {
     "uid": "a1B2c3D4",
     "name": "Jan Novák",
-    "email": "hrac@example.com",
     "role": "player",
     "joinedAt": "2026-09-15T18:30:00Z"
 }
@@ -485,7 +477,7 @@ Testovat se budou například:
 - změna jména a jeho zobrazení na soupisce týmu,
 - přihlášení e-mailem a účtem Google,
 - odhlášení,
-- založení týmu a kontrola unikátního názvu,
+- založení týmu,
 - připojení k týmu pomocí kódu,
 - změna role člena,
 - odebrání člena a zrušení týmu,
@@ -501,7 +493,7 @@ Testovat se budou například:
 
 Projekt má dvě sady automatických testů.
 
-**Testy bezpečnostních pravidel** (`firestore_tests/rules.test.js`, 60 testů) ověřují `firestore.rules` proti lokálnímu Firebase Emulatoru – skutečná databáze se nepoužívá. Každý test provede jednu operaci jako konkrétní uživatel (správce, trenér, hráč, nečlen týmu, nepřihlášený) a ověří, že ji pravidla povolí, nebo zamítnou. Pokrývají například:
+**Testy bezpečnostních pravidel** (`firestore_tests/rules.test.js`, 61 testů) ověřují `firestore.rules` proti lokálnímu Firebase Emulatoru – skutečná databáze se nepoužívá. Každý test provede jednu operaci jako konkrétní uživatel (správce, trenér, hráč, nečlen týmu, nepřihlášený) a ověří, že ji pravidla povolí, nebo zamítnou. Pokrývají například:
 
 - hráč si nemůže sám změnit roli na trenéra ani se připojit rovnou jako trenér,
 - trenéry jmenuje, mění na hráče a odebírá jen správce; trenér smí odebrat jen hráče,
@@ -509,7 +501,7 @@ Projekt má dvě sady automatických testů.
 - vedení jde předat jen členovi týmu, který je (nebo se stejnou dávkou stane) trenérem,
 - název ani kód týmu nejde po založení přepsat,
 - nečlen nevidí tým, soupisku ani tréninky; pozvánkové kódy nejde hromadně vypsat,
-- druhý tým se stejným názvem se nezaloží,
+- tým se zakládá v jedné dávce (tým, kód, členství správce) a kód nejde vytvořit pro cizí tým,
 - hráč vidí jen společné tréninky a individuální tréninky zadané jemu,
 - hráč smí změnit jen svou odpověď (BUDU / NEBUDU u společného, splněno u individuálního tréninku),
 - založení týmu, připojení kódem, změna role, odebrání člena i zrušení týmu projdou ve stejné podobě, v jaké je zapisuje aplikace.

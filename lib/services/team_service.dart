@@ -3,22 +3,27 @@ import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-/// Role uživatele v rámci konkrétního týmu.
-class TeamRole {
-  static const coach = 'coach';
-  static const player = 'player';
+/// Role uživatele v rámci konkrétního týmu. V databázi se ukládá
+/// [Enum.name] (`coach` / `player`).
+enum TeamRole {
+  coach,
+  player;
+
+  static TeamRole fromName(String? name) => values.asNameMap()[name] ?? player;
 }
 
-/// Hráči (bez trenérů) ze soupisky týmu jako uid -> jméno. Starší
-/// členství nemusí mít jméno uložené – pak se použije aspoň e-mail.
+/// Jméno člena ze soupisky. Jméno je povinné ještě před vstupem do týmu
+/// (NameSetupScreen), záložní text je jen pojistka.
+String memberName(Map<String, dynamic> memberData) =>
+    memberData['name'] as String? ?? 'Bez jména';
+
+/// Hráči (bez trenérů) ze soupisky týmu jako uid -> jméno.
 Map<String, String> playerNames(
     List<QueryDocumentSnapshot<Map<String, dynamic>>> members) {
   return {
     for (final doc in members)
-      if ((doc.data()['role'] as String? ?? TeamRole.player) == TeamRole.player)
-        doc.id: doc.data()['name'] as String? ??
-            doc.data()['email'] as String? ??
-            doc.id,
+      if (TeamRole.fromName(doc.data()['role'] as String?) == TeamRole.player)
+        doc.id: memberName(doc.data()),
   };
 }
 
@@ -27,10 +32,12 @@ Map<String, String> playerNames(
 ///
 /// Datový model:
 /// - teams/{teamId}                      – základní údaje o týmu (název, kód, správce)
-/// - teams/{teamId}/members/{uid}        – roster týmu (jméno, role, e-mail, kdy se přidal)
+/// - teams/{teamId}/members/{uid}        – roster týmu (jméno, role, kdy se přidal)
 /// - users/{uid}/teams/{teamId}          – rychlý přehled týmů daného uživatele a jeho role v nich
 /// - team_codes/{code}                   – mapování pozvánkového kódu na tým (viz níže)
-/// - team_names/{normalizedName}         – hlídání unikátnosti názvu týmu (viz níže)
+///
+/// Do soupisky se neukládá e-mail – soupisku čtou všichni členové týmu
+/// a pravidla nejdou omezit na jednotlivá pole dokumentu.
 ///
 /// Uživatel může být v libovolném počtu týmů, v každém s jinou rolí,
 /// proto se role neukládá na uživatele globálně, ale vždy ve vazbě na tým.
@@ -42,14 +49,6 @@ Map<String, String> playerNames(
 /// týmy v kolekci najednou, což pro nečlena (přesně případ připojování)
 /// nejde splnit. Přímý `get()` podle id dokumentu (=kódu) tento problém
 /// nemá, protože se vyhodnocuje jen vůči jednomu konkrétnímu dokumentu.
-///
-/// team_names funguje na stejném principu a navíc vynucuje unikátnost
-/// názvu: doc id je normalizovaný název (trim + lowercase + sloučené
-/// mezery) a bezpečnostní pravidla na něj povolují jen `create`, ne
-/// `update`. Když už název existuje, druhý pokus o zápis Firestore
-/// vyhodnotí jako update existujícího dokumentu, který pravidla zakazují
-/// – to spolehlivě zabrání duplicitám i při souběžném vytváření dvou
-/// týmů se stejným názvem ve stejný okamžik.
 class TeamService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -85,63 +84,34 @@ class TeamService {
     return doc.data()?['name'] as String? ?? user.displayName;
   }
 
-  /// Normalizovaný klíč pro kontrolu unikátnosti názvu: bez ohledu na
-  /// velikost písmen a na duplicitní/okrajové mezery.
-  String _normalizeName(String name) {
-    return name.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
-  }
-
   /// Vytvoří nový tým. Zakladatel se stává jeho správcem a trenérem.
   /// Vrací id nově vytvořeného týmu.
   ///
-  /// Vyhodí Exception, pokud už tým se stejným názvem existuje (viz
-  /// team_names v komentáři u třídy).
+  /// Tým, pozvánkový kód, členství zakladatele i jeho index se zapisují
+  /// v jedné dávce – vznikne buď všechno, nebo nic. Pravidla pro kód
+  /// a trenérské členství proto ověřují správce přes getAfter() (stav po
+  /// celé dávce), protože dokument týmu před dávkou ještě neexistuje.
   Future<String> createTeam(String name) async {
     final trimmedName = name.trim();
     if (trimmedName.isEmpty) {
       throw Exception('Zadej název týmu');
     }
-    if (trimmedName.contains('/')) {
-      throw Exception('Název týmu nesmí obsahovat znak "/"');
-    }
 
     final user = _auth.currentUser;
     if (user == null) throw Exception('Uživatel není přihlášen');
 
-    final teamRef = _db.collection('teams').doc();
-    final nameRef = _db.collection('team_names').doc(_normalizeName(trimmedName));
-
-    // Zamluvení unikátního názvu musí proběhnout jako první – teprve když
-    // se to podaří, má smysl generovat kód a zakládat samotný tým.
-    try {
-      await nameRef.set({
-        'teamId': teamRef.id,
-        'createdBy': user.uid,
-      });
-    } on FirebaseException catch (e) {
-      if (e.code == 'permission-denied') {
-        throw Exception(
-            'Tým s názvem "$trimmedName" už existuje, zvol prosím jiný název');
-      }
-      rethrow;
-    }
-
     final code = await _generateUniqueCode();
     final myName = await _myName(user);
+    final teamRef = _db.collection('teams').doc();
 
-    // Tým se zapisuje samostatně a až poté (v dávce) členství a index u
-    // uživatele. Bezpečnostní pravidla pro vznik "coach" členství ověřují
-    // správce v teams/{teamId}, což vyžaduje, aby dokument týmu už v době
-    // vyhodnocení pravidel existoval – v rámci jedné dávky by ještě
-    // neexistoval, proto dva kroky místo jedné velké dávky.
-    await teamRef.set({
+    final batch = _db.batch();
+
+    batch.set(teamRef, {
       'name': trimmedName,
       'code': code,
       'ownerUid': user.uid,
       'createdAt': FieldValue.serverTimestamp(),
     });
-
-    final batch = _db.batch();
 
     batch.set(_db.collection('team_codes').doc(code), {
       'teamId': teamRef.id,
@@ -151,8 +121,7 @@ class TeamService {
     batch.set(teamRef.collection('members').doc(user.uid), {
       'uid': user.uid,
       'name': myName,
-      'email': user.email,
-      'role': TeamRole.coach,
+      'role': TeamRole.coach.name,
       'joinedAt': FieldValue.serverTimestamp(),
     });
 
@@ -161,7 +130,7 @@ class TeamService {
       {
         'teamId': teamRef.id,
         'teamName': trimmedName,
-        'role': TeamRole.coach,
+        'role': TeamRole.coach.name,
         // Kód se ukládá i sem, aby ho trenér viděl přímo na HomeScreen a
         // mohl ho sdílet s hráči, aniž by se muselo číst z teams/{teamId}.
         'code': code,
@@ -206,8 +175,7 @@ class TeamService {
     batch.set(memberRef, {
       'uid': user.uid,
       'name': myName,
-      'email': user.email,
-      'role': TeamRole.player,
+      'role': TeamRole.player.name,
       'joinedAt': FieldValue.serverTimestamp(),
     });
 
@@ -216,7 +184,7 @@ class TeamService {
       {
         'teamId': teamId,
         'teamName': teamName,
-        'role': TeamRole.player,
+        'role': TeamRole.player.name,
         'joinedAt': FieldValue.serverTimestamp(),
       },
     );
@@ -259,11 +227,7 @@ class TeamService {
   /// Kromě záznamu v rosteru (teams/{teamId}/members/{uid}) se role
   /// aktualizuje i v indexu users/{uid}/teams/{teamId}, aby zůstala
   /// konzistentní i tam, odkud si daný uživatel čte přehled svých týmů.
-  Future<void> updateMemberRole(String teamId, String uid, String role) async {
-    if (role != TeamRole.coach && role != TeamRole.player) {
-      throw Exception('Neplatná role');
-    }
-
+  Future<void> updateMemberRole(String teamId, String uid, TeamRole role) async {
     if (role == TeamRole.player) {
       final teamDoc = await _db.collection('teams').doc(teamId).get();
       if (teamDoc.data()?['ownerUid'] == uid) {
@@ -274,11 +238,11 @@ class TeamService {
     final batch = _db.batch();
     batch.update(
       _db.collection('teams').doc(teamId).collection('members').doc(uid),
-      {'role': role},
+      {'role': role.name},
     );
     batch.update(
       _db.collection('users').doc(uid).collection('teams').doc(teamId),
-      {'role': role},
+      {'role': role.name},
     );
     await batch.commit();
   }
@@ -319,11 +283,11 @@ class TeamService {
     }
 
     final batch = _db.batch();
-    if (member.data()?['role'] != TeamRole.coach) {
-      batch.update(member.reference, {'role': TeamRole.coach});
+    if (TeamRole.fromName(member.data()?['role'] as String?) != TeamRole.coach) {
+      batch.update(member.reference, {'role': TeamRole.coach.name});
       batch.update(
         _db.collection('users').doc(newOwnerUid).collection('teams').doc(teamId),
-        {'role': TeamRole.coach},
+        {'role': TeamRole.coach.name},
       );
     }
     batch.update(teamRef, {'ownerUid': newOwnerUid});
@@ -331,8 +295,8 @@ class TeamService {
   }
 
   /// Úplně zruší tým – smaže samotný tým, celý roster (a jeho index u
-  /// každého člena), tréninky, pozvánkový kód i zamluvený název týmu.
-  /// Smí jen správce týmu. Operace je nevratná.
+  /// každého člena), tréninky i pozvánkový kód. Smí jen správce týmu.
+  /// Operace je nevratná.
   ///
   /// Podkolekce (members, trainings) Firestore se smazáním dokumentu týmu
   /// sám nesmaže, proto se mažou ručně ve stejné dávce.
@@ -341,9 +305,7 @@ class TeamService {
     final teamDoc = await teamRef.get();
     if (!teamDoc.exists) return;
 
-    final data = teamDoc.data()!;
-    final code = data['code'] as String?;
-    final name = data['name'] as String?;
+    final code = teamDoc.data()!['code'] as String?;
 
     final membersSnap = await teamRef.collection('members').get();
     final trainingsSnap = await teamRef.collection('trainings').get();
@@ -360,9 +322,6 @@ class TeamService {
     }
     if (code != null) {
       batch.delete(_db.collection('team_codes').doc(code));
-    }
-    if (name != null) {
-      batch.delete(_db.collection('team_names').doc(_normalizeName(name)));
     }
     batch.delete(teamRef);
 

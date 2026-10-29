@@ -34,6 +34,24 @@ void main() {
     });
   });
 
+  group('Týden', () {
+    test('startOfWeek vrátí pondělí téhož týdne', () {
+      expect(startOfWeek(DateTime(2026, 11, 4, 17, 30)), DateTime(2026, 11, 2));
+      expect(startOfWeek(DateTime(2026, 11, 2)), DateTime(2026, 11, 2));
+      expect(startOfWeek(DateTime(2026, 11, 8)), DateTime(2026, 11, 2));
+    });
+
+    test('formatWeekRange uvede měsíc jednou, nebo u obou dnů', () {
+      expect(formatWeekRange(DateTime(2026, 11, 2)), '2.–8. 11.');
+      expect(formatWeekRange(DateTime(2026, 11, 30)), '30. 11.–6. 12.');
+    });
+
+    test('formatWeekdayShort vrátí českou zkratku dne', () {
+      expect(formatWeekdayShort(DateTime(2026, 11, 2)), 'Po');
+      expect(formatWeekdayShort(DateTime(2026, 11, 8)), 'Ne');
+    });
+  });
+
   group('formatDayHeader', () {
     final now = DateTime.now();
     DateTime day(int offset) => DateTime(now.year, now.month, now.day + offset);

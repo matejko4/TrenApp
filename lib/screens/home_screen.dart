@@ -7,6 +7,7 @@ import '../widgets/account_actions.dart';
 import '../widgets/app_bottom_bar.dart';
 import '../widgets/common.dart';
 import 'team_detail_screen.dart';
+import 'team_setup_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -41,8 +42,8 @@ class HomeScreen extends StatelessWidget {
             separatorBuilder: (_, _) => const SizedBox(height: 12),
             itemBuilder: (context, index) {
               final data = teams[index].data();
-              final role = data['role'] as String? ?? '';
-              final isCoach = role == TeamRole.coach;
+              final isCoach =
+                  TeamRole.fromName(data['role'] as String?) == TeamRole.coach;
               final teamName = data['teamName'] as String? ?? 'Tým';
               final code = data['code'] as String?;
 
@@ -91,6 +92,14 @@ class HomeScreen extends StatelessWidget {
             },
           );
         },
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        icon: const Icon(Icons.group_add),
+        label: const Text('Přidat tým'),
+        onPressed: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const TeamSetupScreen()),
+        ),
       ),
       bottomNavigationBar: const AppBottomBar(current: AppTab.home),
     );

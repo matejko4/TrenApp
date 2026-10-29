@@ -53,7 +53,7 @@ class _NameSetupScreenState extends State<NameSetupScreen> {
       appBar: AppBar(
         title: const Text('TrenApp'),
         automaticallyImplyLeading: false,
-        actions: accountActions(),
+        actions: const [LogoutButton()],
       ),
       body: SafeArea(
         child: Center(

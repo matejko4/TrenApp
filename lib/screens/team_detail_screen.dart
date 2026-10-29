@@ -6,14 +6,22 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../services/team_service.dart';
+import '../services/training_service.dart';
+import '../utils/date_format.dart';
 import '../utils/error_text.dart';
 import '../widgets/account_actions.dart';
 import '../widgets/app_bottom_bar.dart';
 import '../widgets/common.dart';
+import '../widgets/training_widgets.dart';
+import '../widgets/week_calendar.dart';
+import 'team_calendar_screen.dart';
+import 'training_detail_screen.dart';
 
-/// Detail týmu – roster členů. Trenér zde může odebírat hráče. Správce
-/// týmu navíc mění role (přidává a odebírá trenéry), předává vedení
-/// týmu a může tým celý zrušit.
+/// Detail týmu – vlevo týdenní kalendář s tečkami za tréninky, vpravo
+/// soupiska rozdělená na trenéry a hráče, pod nimi nejbližší trénink.
+///
+/// Trenér zde může odebírat hráče. Správce týmu navíc mění role (přidává
+/// a odebírá trenéry), předává vedení týmu a může tým celý zrušit.
 class TeamDetailScreen extends StatefulWidget {
   const TeamDetailScreen({
     super.key,
@@ -34,9 +42,17 @@ class TeamDetailScreen extends StatefulWidget {
 
 class _TeamDetailScreenState extends State<TeamDetailScreen> {
   final _teamService = TeamService();
+  final _trainingService = TrainingService();
   bool _deleting = false;
   String? _ownerUid;
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _teamSub;
+
+  late final Stream<QuerySnapshot<Map<String, dynamic>>> _members =
+      _teamService.streamTeamMembers(widget.teamId);
+  late final Stream<List<Training>> _upcoming = _trainingService
+      .streamTrainings(widget.teamId, isCoach: widget.isCoach, past: false);
+  late DateTime _weekStart = startOfWeek(DateTime.now());
+  late Stream<List<Training>> _weekTrainings = _streamWeek();
 
   @override
   void initState() {
@@ -59,16 +75,48 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
 
   bool get _isOwner => _ownerUid != null && _ownerUid == _myUid;
 
-  Future<void> _changeRole(String uid, String currentRole) async {
+  void _openCalendar() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => TeamCalendarScreen(
+          teamId: widget.teamId,
+          teamName: widget.teamName,
+          isCoach: widget.isCoach,
+        ),
+      ),
+    );
+  }
+
+  Stream<List<Training>> _streamWeek() =>
+      _trainingService.streamTrainingsBetween(
+        widget.teamId,
+        isCoach: widget.isCoach,
+        from: _weekStart,
+        to: DateTime(_weekStart.year, _weekStart.month, _weekStart.day + 7),
+      );
+
+  void _showWeek(int offset) {
+    setState(() {
+      _weekStart = DateTime(
+          _weekStart.year, _weekStart.month, _weekStart.day + 7 * offset);
+      _weekTrainings = _streamWeek();
+    });
+  }
+
+  void _showError(Object e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(errorText(e))),
+    );
+  }
+
+  Future<void> _changeRole(String uid, TeamRole currentRole) async {
     final newRole =
         currentRole == TeamRole.coach ? TeamRole.player : TeamRole.coach;
     try {
       await _teamService.updateMemberRole(widget.teamId, uid, newRole);
     } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(errorText(e))),
-      );
+      if (mounted) _showError(e);
     }
   }
 
@@ -84,36 +132,20 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
     try {
       await _teamService.removeMember(widget.teamId, uid);
     } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(errorText(e))),
-      );
+      if (mounted) _showError(e);
     }
   }
 
   Future<void> _transferOwnership(String uid, String name, bool isPlayer) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Předat vedení týmu'),
-        content: Text(
-          'Správcem týmu "${widget.teamName}" se stane "$name"'
+    final confirmed = await confirmDialog(
+      context,
+      title: 'Předat vedení týmu',
+      message: 'Správcem týmu "${widget.teamName}" se stane "$name"'
           '${isPlayer ? ' a zároveň se stane trenérem' : ''}. '
           'Ty zůstaneš trenérem, ale tým už nebudeš moct zrušit ani spravovat trenéry.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Zrušit'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Předat vedení'),
-          ),
-        ],
-      ),
+      confirmLabel: 'Předat vedení',
     );
-    if (confirmed != true) return;
+    if (!confirmed) return;
 
     try {
       await _teamService.transferOwnership(widget.teamId, uid);
@@ -122,10 +154,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
         SnackBar(content: Text('Správcem týmu je teď $name')),
       );
     } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
-      );
+      if (mounted) _showError(e);
     }
   }
 
@@ -146,9 +175,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _deleting = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(errorText(e))),
-      );
+      _showError(e);
     }
   }
 
@@ -178,72 +205,180 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
           const LogoutButton(),
         ],
       ),
-      bottomNavigationBar: AppBottomBar(
-        current: AppTab.home,
-        team: CurrentTeam(
-          id: widget.teamId,
-          name: widget.teamName,
-          isCoach: widget.isCoach,
-        ),
-      ),
+      bottomNavigationBar: const AppBottomBar(current: AppTab.home),
       body: _deleting
           ? const Center(child: CircularProgressIndicator())
           : StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-              stream: _teamService.streamTeamMembers(widget.teamId),
+              stream: _members,
               builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
                 if (snapshot.hasError) {
                   return Center(child: Text('Chyba: ${snapshot.error}'));
                 }
-
-                final members = snapshot.data?.docs ?? [];
-                if (members.isEmpty) {
-                  return const Center(child: Text('Tým nemá žádné členy.'));
+                if (!snapshot.hasData) {
+                  return const Center(child: CircularProgressIndicator());
                 }
+                final members = snapshot.data!.docs;
 
-                return ListView.separated(
+                return ListView(
                   padding: const EdgeInsets.all(16),
-                  itemCount: members.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 8),
-                  itemBuilder: (context, index) {
-                    final memberDoc = members[index];
-                    final data = memberDoc.data();
-                    final uid = memberDoc.id;
-                    final role = data['role'] as String? ?? TeamRole.player;
-                    // Starší členství nemusí mít jméno uložené – pak
-                    // se zobrazí aspoň e-mail.
-                    final name = data['name'] as String? ??
-                        data['email'] as String? ??
-                        uid;
-                    final isMemberCoach = role == TeamRole.coach;
-                    final isMe = uid == _myUid;
-                    final isOwnerRow = uid == _ownerUid;
-
-                    return Card(
-                      elevation: 1,
-                      child: ListTile(
-                        leading: RoleAvatar(isCoach: isMemberCoach),
-                        title: Text(isMe ? '$name (já)' : name),
-                        subtitle: Text(
-                          isOwnerRow
-                              ? 'Správce týmu'
-                              : (isMemberCoach ? 'Trenér' : 'Hráč'),
-                        ),
-                        trailing: _memberActions(
-                          uid: uid,
-                          name: name,
-                          role: role,
-                          isOwnerRow: isOwnerRow,
-                          isMe: isMe,
-                        ),
-                      ),
-                    );
-                  },
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SizedBox(width: 132, child: _buildWeekCalendar()),
+                        const SizedBox(width: 12),
+                        Expanded(child: _buildRoster(members)),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    _buildNextTraining(playerNames(members)),
+                  ],
                 );
               },
             ),
+    );
+  }
+
+  Widget _buildWeekCalendar() {
+    return Column(
+      children: [
+        StreamBuilder<List<Training>>(
+          stream: _weekTrainings,
+          builder: (context, snapshot) => WeekCalendar(
+            weekStart: _weekStart,
+            // Po přepnutí týdne nezobrazovat tečky z předchozího týdne.
+            trainings: snapshot.connectionState == ConnectionState.waiting
+                ? const []
+                : snapshot.data ?? const [],
+            onPreviousWeek: () => _showWeek(-1),
+            onNextWeek: () => _showWeek(1),
+            onDayTap: (_) => _openCalendar(),
+          ),
+        ),
+        TextButton.icon(
+          onPressed: _openCalendar,
+          icon: const Icon(Icons.calendar_month, size: 18),
+          label: const Text('Celý kalendář'),
+        ),
+      ],
+    );
+  }
+
+  /// Soupiska rozdělená na trenéry (správce první) a hráče, obojí v pořadí,
+  /// v jakém se připojili.
+  Widget _buildRoster(
+      List<QueryDocumentSnapshot<Map<String, dynamic>>> members) {
+    bool isCoach(QueryDocumentSnapshot<Map<String, dynamic>> member) =>
+        TeamRole.fromName(member.data()['role'] as String?) == TeamRole.coach;
+
+    final coaches = [
+      ...members.where((m) => isCoach(m) && m.id == _ownerUid),
+      ...members.where((m) => isCoach(m) && m.id != _ownerUid),
+    ];
+    final players = members.where((m) => !isCoach(m)).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SectionTitle(
+          'Trenéři (${coaches.length})',
+          padding: const EdgeInsets.only(bottom: 4),
+        ),
+        for (final member in coaches) _buildMember(member),
+        SectionTitle('Hráči (${players.length})'),
+        if (players.isEmpty)
+          Text(
+            widget.isCoach
+                ? 'Zatím žádní hráči. Pozvi je pomocí kódu týmu.'
+                : 'Zatím žádní hráči.',
+            style: const TextStyle(color: Colors.black54),
+          ),
+        for (final member in players) _buildMember(member),
+      ],
+    );
+  }
+
+  Widget _buildMember(QueryDocumentSnapshot<Map<String, dynamic>> member) {
+    final data = member.data();
+    final uid = member.id;
+    final role = TeamRole.fromName(data['role'] as String?);
+    final name = memberName(data);
+    final isMe = uid == _myUid;
+    final isOwnerRow = uid == _ownerUid;
+
+    return Card(
+      elevation: 1,
+      margin: const EdgeInsets.only(bottom: 8),
+      child: ListTile(
+        dense: true,
+        contentPadding: const EdgeInsets.only(left: 8),
+        horizontalTitleGap: 8,
+        leading: RoleAvatar(isCoach: role == TeamRole.coach),
+        title: Text(
+          isMe ? '$name (já)' : name,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+        ),
+        subtitle: isOwnerRow ? const Text('Správce týmu') : null,
+        trailing: _memberActions(
+          uid: uid,
+          name: name,
+          role: role,
+          isOwnerRow: isOwnerRow,
+          isMe: isMe,
+        ),
+      ),
+    );
+  }
+
+  /// Nejbližší trénink, který ještě neskončil – ze stejných tréninků, jaké
+  /// uživatel vidí v kalendáři (hráč jen společné a svoje individuální).
+  Widget _buildNextTraining(Map<String, String> players) {
+    return StreamBuilder<List<Training>>(
+      stream: _upcoming,
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return Text('Chyba: ${snapshot.error}');
+        }
+        if (!snapshot.hasData) return const SizedBox.shrink();
+
+        final now = DateTime.now();
+        final next = snapshot.data!
+            .where((t) =>
+                t.startAt.isAfter(now) || (t.endAt?.isAfter(now) ?? false))
+            .firstOrNull;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SectionTitle(next == null
+                ? 'Nejbližší trénink'
+                : 'Nejbližší trénink · ${formatDayHeader(next.startAt)}'),
+            if (next == null)
+              const Text(
+                'Žádný naplánovaný trénink.',
+                style: TextStyle(color: Colors.black54),
+              )
+            else
+              TrainingCard(
+                teamId: widget.teamId,
+                training: next,
+                isCoach: widget.isCoach,
+                players: players,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => TrainingDetailScreen(
+                      teamId: widget.teamId,
+                      trainingId: next.id,
+                      isCoach: widget.isCoach,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 
@@ -253,7 +388,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
   Widget? _memberActions({
     required String uid,
     required String name,
-    required String role,
+    required TeamRole role,
     required bool isOwnerRow,
     required bool isMe,
   }) {

@@ -8,13 +8,8 @@ import '../widgets/app_bottom_bar.dart';
 import '../widgets/common.dart';
 
 /// Nastavení účtu: změna jména, hesla a odhlášení.
-///
-/// [showBottomBar] je false, když se nastavení otevírá z obrazovky
-/// uživatele bez týmu (viz TeamSetupScreen), kde spodní lišta není.
 class AccountSettingsScreen extends StatelessWidget {
-  const AccountSettingsScreen({super.key, this.showBottomBar = true});
-
-  final bool showBottomBar;
+  const AccountSettingsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -114,9 +109,7 @@ class AccountSettingsScreen extends StatelessWidget {
           );
         },
       ),
-      bottomNavigationBar: showBottomBar
-          ? const AppBottomBar(current: AppTab.account)
-          : null,
+      bottomNavigationBar: const AppBottomBar(current: AppTab.account),
     );
   }
 

@@ -167,7 +167,7 @@ class _TrainingDetailScreenState extends State<TrainingDetailScreen> {
 
   /// Kdo na společný trénink přijde, nepřijde a kdo ještě neodpověděl.
   Widget _buildTeamOverview(Training training, Map<String, String> players) {
-    List<String> namesWith(String? response) => [
+    List<String> namesWith(TrainingResponse response) => [
           for (final entry in players.entries)
             if (training.responses[entry.key] == response) entry.value,
         ]..sort();

@@ -78,10 +78,10 @@ function training(overrides = {}) {
 async function seed() {
   await testEnv.withSecurityRulesDisabled(async (context) => {
     const admin = context.firestore();
-    const member = (uid, role) => ({ uid, name: uid, email: `${uid}@test.cz`, role });
+    const member = (uid, role) => ({ uid, name: uid, role });
 
     for (const uid of ['trener', 'trener2', 'asistent', 'hrac', 'hrac2', 'cizi']) {
-      await setDoc(doc(admin, 'users', uid), { name: uid, email: `${uid}@test.cz` });
+      await setDoc(doc(admin, 'users', uid), { name: uid });
     }
     await setDoc(doc(admin, 'teams', TEAM), { name: 'SFC', code: CODE, ownerUid: 'trener' });
     for (const [uid, role] of MEMBERS) {
@@ -89,7 +89,6 @@ async function seed() {
       await setDoc(doc(admin, 'users', uid, 'teams', TEAM), { teamId: TEAM, teamName: 'SFC', role });
     }
     await setDoc(doc(admin, 'team_codes', CODE), { teamId: TEAM, teamName: 'SFC' });
-    await setDoc(doc(admin, 'team_names', 'sfc'), { teamId: TEAM, createdBy: 'trener' });
     await setDoc(doc(admin, 'teams', TEAM, 'trainings', 'spolecny'), training());
     await setDoc(
       doc(admin, 'teams', TEAM, 'trainings', 'beh'),
@@ -160,21 +159,20 @@ describe('Tým a soupiska', () => {
     await assertFails(setDoc(team, { name: 'X', code: 'X' }));
   });
 
-  it('založení týmu projde stejně jako v TeamService.createTeam', async () => {
+  it('založení týmu projde v jedné dávce stejně jako v TeamService.createTeam', async () => {
     const novy = db('cizi');
-    await assertSucceeds(setDoc(doc(novy, 'team_names', 'novy tym'), { teamId: 'tym2', createdBy: 'cizi' }));
-    await assertSucceeds(setDoc(doc(novy, 'teams', 'tym2'), {
-      name: 'Nový tým', code: 'ZZZZ2222', ownerUid: 'cizi', createdAt: serverTimestamp(),
-    }));
     const batch = writeBatch(novy);
+    batch.set(doc(novy, 'teams', 'tym2'), {
+      name: 'Nový tým', code: 'ZZZZ2222', ownerUid: 'cizi', createdAt: serverTimestamp(),
+    });
     batch.set(doc(novy, 'team_codes', 'ZZZZ2222'), { teamId: 'tym2', teamName: 'Nový tým' });
     batch.set(doc(novy, 'teams', 'tym2', 'members', 'cizi'), { uid: 'cizi', name: 'cizi', role: 'coach' });
     batch.set(doc(novy, 'users', 'cizi', 'teams', 'tym2'), { teamId: 'tym2', teamName: 'Nový tým', role: 'coach' });
     await assertSucceeds(batch.commit());
   });
 
-  it('druhý tým se stejným názvem se nezaloží (team_names jde jen vytvořit)', async () => {
-    await assertFails(setDoc(doc(db('cizi'), 'team_names', 'sfc'), { teamId: 'tym2', createdBy: 'cizi' }));
+  it('dva týmy můžou mít stejný název', async () => {
+    await assertSucceeds(setDoc(doc(db('cizi'), 'teams', 'tym2'), { name: 'SFC', code: 'ZZZZ2222', ownerUid: 'cizi' }));
   });
 });
 
@@ -189,6 +187,11 @@ describe('Připojení pozvánkovým kódem', () => {
 
   it('všechny kódy nejde vypsat (ochrana proti hádání)', async () => {
     await assertFails(getDocs(collection(db('cizi'), 'team_codes')));
+  });
+
+  it('kód nejde vytvořit pro cizí tým', async () => {
+    await assertFails(setDoc(doc(db('cizi'), 'team_codes', 'ZZZZ2222'), { teamId: TEAM, teamName: 'SFC' }));
+    await assertFails(setDoc(doc(db('trener2'), 'team_codes', 'ZZZZ2222'), { teamId: TEAM, teamName: 'SFC' }));
   });
 
   it('existující kód nejde přepsat', async () => {
@@ -281,7 +284,6 @@ describe('Role a správa členů', () => {
       batch.delete(doc(trener, 'users', uid, 'teams', TEAM));
     }
     batch.delete(doc(trener, 'team_codes', CODE));
-    batch.delete(doc(trener, 'team_names', 'sfc'));
     batch.delete(doc(trener, 'teams', TEAM));
     await assertSucceeds(batch.commit());
   });

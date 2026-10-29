@@ -22,9 +22,9 @@ Future<void> pumpCoachCard(WidgetTester tester, Training training) {
 }
 
 Training makeTraining({
-  required String kind,
+  required TrainingKind kind,
   List<String> assignedTo = const [],
-  required Map<String, String> responses,
+  required Map<String, TrainingResponse> responses,
 }) {
   return Training(
     id: 't1',

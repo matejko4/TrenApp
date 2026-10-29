@@ -3,28 +3,36 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+// Enumy tréninku se v databázi ukládají jako svůj název ([Enum.name],
+// např. `team`, `yes`, `run`) a zpět se převádějí přes fromName.
+
 /// Druh tréninku.
-class TrainingKind {
+enum TrainingKind {
   /// Společný trénink celého týmu – hráči odpovídají BUDU / NEBUDU.
-  static const team = 'team';
+  team,
 
   /// Individuální trénink zadaný vybraným hráčům – sleduje se jeho splnění.
-  static const individual = 'individual';
+  individual;
+
+  static TrainingKind fromName(String? name) =>
+      values.asNameMap()[name] ?? team;
 }
 
-/// Hodnoty v mapě `responses` tréninku (uid hráče -> odpověď).
-class TrainingResponse {
+/// Odpověď hráče v mapě `responses` tréninku (uid hráče -> odpověď).
+enum TrainingResponse {
   /// BUDU – u společného tréninku.
-  static const yes = 'yes';
+  yes,
 
   /// NEBUDU – u společného tréninku.
-  static const no = 'no';
+  no,
 
   /// Splněno – u individuálního tréninku.
-  static const done = 'done';
+  done;
+
+  static TrainingResponse? fromName(String? name) => values.asNameMap()[name];
 }
 
-/// Typ tréninku. V databázi se ukládá [name] (např. `run`).
+/// Typ tréninku.
 enum TrainingType {
   run('Běh'),
   strength('Silový trénink'),
@@ -37,7 +45,7 @@ enum TrainingType {
   final String label;
 
   static TrainingType fromName(String? name) =>
-      values.firstWhere((type) => type.name == name, orElse: () => other);
+      values.asNameMap()[name] ?? other;
 }
 
 /// Stav individuálního tréninku z pohledu jednoho hráče.
@@ -62,7 +70,7 @@ class Training {
     final data = doc.data() ?? {};
     return Training(
       id: doc.id,
-      kind: data['kind'] as String? ?? TrainingKind.team,
+      kind: TrainingKind.fromName(data['kind'] as String?),
       title: data['title'] as String? ?? 'Trénink',
       type: TrainingType.fromName(data['type'] as String?),
       startAt: (data['startAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
@@ -70,13 +78,22 @@ class Training {
       place: data['place'] as String?,
       description: data['description'] as String?,
       assignedTo: List<String>.from(data['assignedTo'] as List? ?? const []),
-      responses:
-          Map<String, String>.from(data['responses'] as Map? ?? const {}),
+      responses: _parseResponses(data['responses']),
     );
   }
 
+  /// Mapa odpovědí z databáze; neznámé hodnoty se vynechají.
+  static Map<String, TrainingResponse> _parseResponses(Object? raw) {
+    final responses = <String, TrainingResponse>{};
+    (raw as Map? ?? const {}).forEach((uid, value) {
+      final response = TrainingResponse.fromName(value as String?);
+      if (response != null) responses[uid as String] = response;
+    });
+    return responses;
+  }
+
   final String id;
-  final String kind;
+  final TrainingKind kind;
   final String title;
   final TrainingType type;
   final DateTime startAt;
@@ -87,8 +104,8 @@ class Training {
   /// Hráči, kterým je individuální trénink zadaný. U společného prázdné.
   final List<String> assignedTo;
 
-  /// Odpovědi hráčů: uid -> [TrainingResponse].
-  final Map<String, String> responses;
+  /// Odpovědi hráčů: uid -> odpověď.
+  final Map<String, TrainingResponse> responses;
 
   bool get isTeam => kind == TrainingKind.team;
 
@@ -135,13 +152,6 @@ class TrainingService {
 
   /// Tréninky týmu pro kalendář – nadcházející (od dnešní půlnoci), nebo
   /// proběhlé ([past]). Vždy seřazené podle začátku vzestupně.
-  ///
-  /// Trenér čte všechny tréninky týmu jedním dotazem. Hráč smí číst jen
-  /// společné tréninky a individuální zadané jemu. Firestore pravidla
-  /// nejsou filtr – dotaz musí sám zaručit, že vrátí jen povolené
-  /// dokumenty – proto se pro hráče posílají dva dotazy (kind == 'team'
-  /// a assignedTo array-contains uid) a jejich výsledky se spojí. Oba
-  /// potřebují složený index, viz firestore.indexes.json.
   Stream<List<Training>> streamTrainings(
     String teamId, {
     required bool isCoach,
@@ -150,12 +160,48 @@ class TrainingService {
     final now = DateTime.now();
     final todayStart =
         Timestamp.fromDate(DateTime(now.year, now.month, now.day));
-
-    Stream<List<Training>> listen(Query<Map<String, dynamic>> query) {
-      final inRange = past
+    return _streamVisible(
+      teamId,
+      isCoach,
+      (query) => past
           ? query.where('startAt', isLessThan: todayStart)
-          : query.where('startAt', isGreaterThanOrEqualTo: todayStart);
-      return inRange
+          : query.where('startAt', isGreaterThanOrEqualTo: todayStart),
+    );
+  }
+
+  /// Tréninky týmu se začátkem v rozmezí [from] (včetně) až [to] (bez) –
+  /// týdenní kalendář v detailu týmu.
+  Stream<List<Training>> streamTrainingsBetween(
+    String teamId, {
+    required bool isCoach,
+    required DateTime from,
+    required DateTime to,
+  }) {
+    return _streamVisible(
+      teamId,
+      isCoach,
+      (query) => query
+          .where('startAt', isGreaterThanOrEqualTo: Timestamp.fromDate(from))
+          .where('startAt', isLessThan: Timestamp.fromDate(to)),
+    );
+  }
+
+  /// Tréninky, které uživatel smí vidět, omezené podmínkou [inRange] na
+  /// startAt a seřazené podle začátku.
+  ///
+  /// Trenér čte všechny tréninky týmu jedním dotazem. Hráč smí číst jen
+  /// společné tréninky a individuální zadané jemu. Firestore pravidla
+  /// nejsou filtr – dotaz musí sám zaručit, že vrátí jen povolené
+  /// dokumenty – proto se pro hráče posílají dva dotazy (kind == 'team'
+  /// a assignedTo array-contains uid) a jejich výsledky se spojí. Oba
+  /// potřebují složený index, viz firestore.indexes.json.
+  Stream<List<Training>> _streamVisible(
+    String teamId,
+    bool isCoach,
+    Query<Map<String, dynamic>> Function(Query<Map<String, dynamic>>) inRange,
+  ) {
+    Stream<List<Training>> listen(Query<Map<String, dynamic>> query) {
+      return inRange(query)
           .orderBy('startAt')
           .snapshots()
           .map((snapshot) => snapshot.docs.map(Training.fromDoc).toList());
@@ -164,7 +210,7 @@ class TrainingService {
     final trainings = _trainings(teamId);
     if (isCoach) return listen(trainings);
     return _combine(
-      listen(trainings.where('kind', isEqualTo: TrainingKind.team)),
+      listen(trainings.where('kind', isEqualTo: TrainingKind.team.name)),
       listen(trainings.where('assignedTo', arrayContains: _uid)),
     );
   }
@@ -222,7 +268,7 @@ class TrainingService {
   Future<void> saveTraining({
     required String teamId,
     String? trainingId,
-    required String kind,
+    required TrainingKind kind,
     required String title,
     required TrainingType type,
     required DateTime startAt,
@@ -247,7 +293,7 @@ class TrainingService {
     }
 
     final data = <String, dynamic>{
-      'kind': kind,
+      'kind': kind.name,
       'title': trimmedTitle,
       'type': type.name,
       'startAt': Timestamp.fromDate(startAt),
@@ -273,7 +319,7 @@ class TrainingService {
     // odpovědi nedávají smysl (BUDU/NEBUDU vs. splněno), proto se smažou.
     final ref = _trainings(teamId).doc(trainingId);
     final current = await ref.get();
-    if (current.data()?['kind'] != kind) {
+    if (current.data()?['kind'] != kind.name) {
       data['responses'] = <String, String>{};
     }
     await ref.update(data);
@@ -287,9 +333,10 @@ class TrainingService {
   /// Uloží odpověď aktuálního hráče – [TrainingResponse.yes] / [TrainingResponse.no]
   /// u společného tréninku, [TrainingResponse.done] u individuálního.
   /// `null` odpověď smaže (zpět na „bez odpovědi“ / „naplánovaný“).
-  Future<void> respond(String teamId, String trainingId, String? response) {
+  Future<void> respond(
+      String teamId, String trainingId, TrainingResponse? response) {
     return _trainings(teamId).doc(trainingId).update({
-      FieldPath(['responses', _uid]): response ?? FieldValue.delete(),
+      FieldPath(['responses', _uid]): response?.name ?? FieldValue.delete(),
     });
   }
 }

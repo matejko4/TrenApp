@@ -2,10 +2,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:tren_app/services/training_service.dart';
 
 Training makeTraining({
-  String kind = TrainingKind.individual,
+  TrainingKind kind = TrainingKind.individual,
   required DateTime startAt,
   List<String> assignedTo = const ['hrac'],
-  Map<String, String> responses = const {},
+  Map<String, TrainingResponse> responses = const {},
 }) {
   return Training(
     id: 't1',
