@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import '../services/team_service.dart';
 import '../widgets/account_actions.dart';
 import '../widgets/app_bottom_bar.dart';
+import '../widgets/common.dart';
 import 'team_detail_screen.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -17,8 +18,6 @@ class HomeScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('TrenApp'),
-        backgroundColor: Colors.indigo,
-        foregroundColor: Colors.white,
         actions: const [LogoutButton()],
       ),
       body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
@@ -54,13 +53,7 @@ class HomeScreen extends StatelessWidget {
                     horizontal: 16,
                     vertical: 8,
                   ),
-                  leading: CircleAvatar(
-                    backgroundColor: isCoach ? Colors.indigo : Colors.teal,
-                    child: Icon(
-                      isCoach ? Icons.sports : Icons.directions_run,
-                      color: Colors.white,
-                    ),
-                  ),
+                  leading: RoleAvatar(isCoach: isCoach),
                   title: Text(
                     teamName,
                     style: const TextStyle(fontWeight: FontWeight.bold),

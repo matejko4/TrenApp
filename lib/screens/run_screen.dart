@@ -4,7 +4,6 @@ import '../services/training_service.dart';
 import '../widgets/coming_soon.dart';
 
 /// Záznam běžeckého tréninku pomocí GPS (čas, vzdálenost, tempo, trasa).
-/// Zatím jen zástupná obrazovka – GPS záznam je v plánu na listopad.
 class RunScreen extends StatelessWidget {
   const RunScreen({super.key, required this.teamId, required this.training});
 
@@ -16,8 +15,6 @@ class RunScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text(training.title),
-        backgroundColor: Colors.indigo,
-        foregroundColor: Colors.white,
       ),
       body: const ComingSoon(
         icon: Icons.directions_run,

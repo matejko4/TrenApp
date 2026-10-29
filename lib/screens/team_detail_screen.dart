@@ -6,8 +6,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../services/team_service.dart';
+import '../utils/error_text.dart';
 import '../widgets/account_actions.dart';
 import '../widgets/app_bottom_bar.dart';
+import '../widgets/common.dart';
 
 /// Detail týmu – roster členů. Trenér zde může odebírat hráče. Správce
 /// týmu navíc mění role (přidává a odebírá trenéry), předává vedení
@@ -65,37 +67,26 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+        SnackBar(content: Text(errorText(e))),
       );
     }
   }
 
   Future<void> _removeMember(String uid, String name) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Odebrat člena'),
-        content: Text('Opravdu chceš odebrat "$name" z týmu?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Zrušit'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Odebrat'),
-          ),
-        ],
-      ),
+    final confirmed = await confirmDialog(
+      context,
+      title: 'Odebrat člena',
+      message: 'Opravdu chceš odebrat "$name" z týmu?',
+      confirmLabel: 'Odebrat',
     );
-    if (confirmed != true) return;
+    if (!confirmed) return;
 
     try {
       await _teamService.removeMember(widget.teamId, uid);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+        SnackBar(content: Text(errorText(e))),
       );
     }
   }
@@ -139,28 +130,14 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
   }
 
   Future<void> _deleteTeam() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Zrušit tým'),
-        content: Text(
-          'Opravdu chceš úplně zrušit tým "${widget.teamName}"? '
+    final confirmed = await confirmDialog(
+      context,
+      title: 'Zrušit tým',
+      message: 'Opravdu chceš úplně zrušit tým "${widget.teamName}"? '
           'Smažou se všichni členové a tato akce je nevratná.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Zrušit'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Zrušit tým'),
-          ),
-        ],
-      ),
+      confirmLabel: 'Zrušit tým',
     );
-    if (confirmed != true) return;
+    if (!confirmed) return;
 
     setState(() => _deleting = true);
     try {
@@ -170,7 +147,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
       if (!mounted) return;
       setState(() => _deleting = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+        SnackBar(content: Text(errorText(e))),
       );
     }
   }
@@ -180,8 +157,6 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.teamName),
-        backgroundColor: Colors.indigo,
-        foregroundColor: Colors.white,
         actions: [
           if (widget.code != null)
             IconButton(
@@ -249,14 +224,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                     return Card(
                       elevation: 1,
                       child: ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor:
-                              isMemberCoach ? Colors.indigo : Colors.teal,
-                          child: Icon(
-                            isMemberCoach ? Icons.sports : Icons.directions_run,
-                            color: Colors.white,
-                          ),
-                        ),
+                        leading: RoleAvatar(isCoach: isMemberCoach),
                         title: Text(isMe ? '$name (já)' : name),
                         subtitle: Text(
                           isOwnerRow

@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../services/auth_service.dart';
+import '../utils/error_text.dart';
 import '../widgets/account_actions.dart';
 
 /// Zobrazí se po přihlášení, pokud uživatel ještě nemá vyplněné jméno
@@ -38,7 +39,7 @@ class _NameSetupScreenState extends State<NameSetupScreen> {
       await _authService.updateName(_nameController.text);
     } catch (e) {
       if (mounted) {
-        setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
+        setState(() => _error = errorText(e));
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -51,8 +52,6 @@ class _NameSetupScreenState extends State<NameSetupScreen> {
       backgroundColor: Colors.indigo.shade50,
       appBar: AppBar(
         title: const Text('TrenApp'),
-        backgroundColor: Colors.indigo,
-        foregroundColor: Colors.white,
         automaticallyImplyLeading: false,
         actions: accountActions(),
       ),

@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import '../services/team_service.dart';
 import '../services/training_service.dart';
 import '../utils/date_format.dart';
+import '../utils/error_text.dart';
+import '../widgets/common.dart';
 import '../widgets/training_widgets.dart';
 import 'training_form_screen.dart';
 
@@ -35,25 +37,13 @@ class _TrainingDetailScreenState extends State<TrainingDetailScreen> {
   bool _deleting = false;
 
   Future<void> _delete(Training training) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Smazat trénink'),
-        content: Text('Opravdu chceš smazat trénink "${training.title}"?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Zrušit'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Smazat'),
-          ),
-        ],
-      ),
+    final confirmed = await confirmDialog(
+      context,
+      title: 'Smazat trénink',
+      message: 'Opravdu chceš smazat trénink "${training.title}"?',
+      confirmLabel: 'Smazat',
     );
-    if (confirmed != true) return;
+    if (!confirmed) return;
 
     setState(() => _deleting = true);
     try {
@@ -63,7 +53,7 @@ class _TrainingDetailScreenState extends State<TrainingDetailScreen> {
       if (!mounted) return;
       setState(() => _deleting = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+        SnackBar(content: Text(errorText(e))),
       );
     }
   }
@@ -89,8 +79,6 @@ class _TrainingDetailScreenState extends State<TrainingDetailScreen> {
         return Scaffold(
           appBar: AppBar(
             title: Text(training?.title ?? 'Trénink'),
-            backgroundColor: Colors.indigo,
-            foregroundColor: Colors.white,
             actions: [
               if (widget.isCoach && training != null) ...[
                 IconButton(
@@ -225,7 +213,7 @@ class _TrainingDetailScreenState extends State<TrainingDetailScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _SectionTitle('Hráči (${assigned.length})'),
+        SectionTitle('Hráči (${assigned.length})'),
         for (final uid in assigned)
           ListTile(
             contentPadding: EdgeInsets.zero,
@@ -257,28 +245,6 @@ class _InfoTile extends StatelessWidget {
   }
 }
 
-class _SectionTitle extends StatelessWidget {
-  const _SectionTitle(this.title);
-
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 8, bottom: 4),
-      child: Text(
-        title.toUpperCase(),
-        style: const TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.bold,
-          color: Colors.indigo,
-          letterSpacing: 1,
-        ),
-      ),
-    );
-  }
-}
-
 /// Nadpis skupiny (např. „Přijdou (3)“) a jména hráčů v ní.
 class _NameSection extends StatelessWidget {
   const _NameSection({
@@ -296,7 +262,7 @@ class _NameSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _SectionTitle(title),
+        SectionTitle(title),
         if (names.isEmpty)
           const Padding(
             padding: EdgeInsets.only(bottom: 8),

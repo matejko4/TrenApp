@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/team_service.dart';
+import '../utils/error_text.dart';
 import '../widgets/account_actions.dart';
 import '../widgets/app_bottom_bar.dart';
 
@@ -48,7 +49,7 @@ class _TeamSetupScreenState extends State<TeamSetupScreen> {
         Navigator.of(context).maybePop();
       }
     } catch (e) {
-      setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
+      setState(() => _error = errorText(e));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -63,14 +64,10 @@ class _TeamSetupScreenState extends State<TeamSetupScreen> {
       appBar: canPop
           ? AppBar(
               title: const Text('Přidat tým'),
-              backgroundColor: Colors.indigo,
-              foregroundColor: Colors.white,
               actions: const [LogoutButton()],
             )
           : AppBar(
               title: const Text('TrenApp'),
-              backgroundColor: Colors.indigo,
-              foregroundColor: Colors.white,
               automaticallyImplyLeading: false,
               actions: accountActions(),
             ),

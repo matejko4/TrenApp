@@ -1,5 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
 class AuthService {
@@ -19,16 +21,48 @@ class AuthService {
     return trimmed;
   }
 
+  /// Prázdný e-mail nebo heslo se ohlásí hned, bez dotazu na Firebase
+  /// (ten by vrátil nesrozumitelnou chybu).
+  void _checkFilled(String email, String password) {
+    if (email.isEmpty) throw Exception('Zadej e-mail');
+    if (password.isEmpty) throw Exception('Zadej heslo');
+  }
+
+  /// Česká hláška pro chybu z Firebase Auth podle jejího kódu.
+  String _authErrorMessage(FirebaseAuthException e) => switch (e.code) {
+        'invalid-credential' || 'wrong-password' || 'user-not-found' =>
+          'Nesprávný e-mail nebo heslo',
+        'invalid-email' => 'Neplatný tvar e-mailu',
+        'email-already-in-use' =>
+          'Účet s tímto e-mailem už existuje – přihlas se',
+        'weak-password' => 'Heslo je příliš slabé – musí mít alespoň 6 znaků',
+        'user-disabled' => 'Tento účet je zablokovaný',
+        'too-many-requests' => 'Příliš mnoho pokusů, zkus to za chvíli',
+        'network-request-failed' => 'Nejsi připojený k internetu',
+        'popup-blocked' =>
+          'Prohlížeč zablokoval okno pro přihlášení – povol vyskakovací okna',
+        _ => 'Něco se nepovedlo (${e.code})',
+      };
+
   // Registrace email/heslo - jméno se ukládá do users/{uid} a v aplikaci se
   // zobrazuje místo e-mailu. Role se přiřadí až po vytvoření/připojení týmu
   // (viz TeamService), proto se zde neukládá.
   Future<UserCredential> register(
       String name, String email, String password) async {
     final trimmedName = _checkName(name);
-    UserCredential cred = await _auth.createUserWithEmailAndPassword(
-      email: email,
-      password: password,
-    );
+    _checkFilled(email, password);
+    if (password.length < 6) {
+      throw Exception('Heslo musí mít alespoň 6 znaků');
+    }
+    final UserCredential cred;
+    try {
+      cred = await _auth.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+    } on FirebaseAuthException catch (e) {
+      throw Exception(_authErrorMessage(e));
+    }
     await _db.collection('users').doc(cred.user!.uid).set({
       'name': trimmedName,
       'email': email,
@@ -40,26 +74,35 @@ class AuthService {
 
   // Přihlášení email/heslo
   Future<UserCredential> login(String email, String password) async {
-    return await _auth.signInWithEmailAndPassword(
-      email: email,
-      password: password,
-    );
+    _checkFilled(email, password);
+    try {
+      return await _auth.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+    } on FirebaseAuthException catch (e) {
+      throw Exception(_authErrorMessage(e));
+    }
   }
 
-  // Google přihlášení
+  // Google přihlášení. Vrací null, když uživatel okno s výběrem účtu zavřel.
   Future<UserCredential?> signInWithGoogle() async {
-    final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
-    if (googleUser == null) return null;
-
-    final GoogleSignInAuthentication googleAuth =
-        await googleUser.authentication;
-
-    final credential = GoogleAuthProvider.credential(
-      accessToken: googleAuth.accessToken,
-      idToken: googleAuth.idToken,
-    );
-
-    UserCredential cred = await _auth.signInWithCredential(credential);
+    final UserCredential? result;
+    try {
+      result =
+          kIsWeb ? await _signInWithGoogleWeb() : await _signInWithGoogleApp();
+    } on FirebaseAuthException catch (e) {
+      throw Exception(_authErrorMessage(e));
+    } on PlatformException catch (e) {
+      // Chyby z okna Google účtu (balíček google_sign_in) mají vlastní kódy.
+      if (e.code == GoogleSignIn.kSignInCanceledError) return null;
+      if (e.code == GoogleSignIn.kNetworkError) {
+        throw Exception('Nejsi připojený k internetu');
+      }
+      throw Exception('Přihlášení přes Google selhalo');
+    }
+    if (result == null) return null;
+    final cred = result;
 
     // Jméno se při prvním přihlášení převezme z Google účtu. Pokud ho
     // účet nemá, RootGate si ho od uživatele vyžádá (NameSetupScreen).
@@ -74,6 +117,40 @@ class AuthService {
     }
 
     return cred;
+  }
+
+  /// Web: okno s Google účtem otevře přímo Firebase. Balíček google_sign_in
+  /// by na webu potřeboval mít v Google Cloud Console povolenou přesnou
+  /// adresu stránky (origin) – a `flutter run` ji spouští pokaždé na jiném
+  /// portu. Firebase má `localhost` povolený automaticky.
+  Future<UserCredential?> _signInWithGoogleWeb() async {
+    try {
+      return await _auth.signInWithPopup(GoogleAuthProvider());
+    } on FirebaseAuthException catch (e) {
+      // Zavřené okno není chyba – uživatel si to rozmyslel.
+      if (e.code == 'popup-closed-by-user' ||
+          e.code == 'cancelled-popup-request') {
+        return null;
+      }
+      rethrow;
+    }
+  }
+
+  /// Android: výběr Google účtu přes balíček google_sign_in, získaný
+  /// účet se pak použije k přihlášení do Firebase.
+  Future<UserCredential?> _signInWithGoogleApp() async {
+    final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+    if (googleUser == null) return null; // okno zavřené bez výběru účtu
+
+    final GoogleSignInAuthentication googleAuth =
+        await googleUser.authentication;
+
+    final credential = GoogleAuthProvider.credential(
+      accessToken: googleAuth.accessToken,
+      idToken: googleAuth.idToken,
+    );
+
+    return _auth.signInWithCredential(credential);
   }
 
   /// Nastaví/změní jméno aktuálního uživatele. Kromě users/{uid} se jméno
@@ -131,34 +208,34 @@ class AuthService {
       await user.reauthenticateWithCredential(credential);
       await user.updatePassword(newPassword);
     } on FirebaseAuthException catch (e) {
-      switch (e.code) {
-        case 'wrong-password':
-        case 'invalid-credential':
-          throw Exception('Současné heslo není správné');
-        case 'weak-password':
-          throw Exception('Nové heslo je příliš slabé');
-        case 'too-many-requests':
-          throw Exception('Příliš mnoho pokusů, zkus to později');
-        default:
-          throw Exception('Změna hesla selhala (${e.code})');
+      // Tady jde o ověření současného hesla, proto přesnější hláška než
+      // obecné „Nesprávný e-mail nebo heslo“.
+      if (e.code == 'wrong-password' || e.code == 'invalid-credential') {
+        throw Exception('Současné heslo není správné');
       }
+      throw Exception(_authErrorMessage(e));
     }
   }
 
   Future<void> sendPasswordReset() async {
     final email = _auth.currentUser?.email;
     if (email == null) throw Exception('Účet nemá e-mail');
-    await _auth.sendPasswordResetEmail(email: email);
+    try {
+      await _auth.sendPasswordResetEmail(email: email);
+    } on FirebaseAuthException catch (e) {
+      throw Exception(_authErrorMessage(e));
+    }
   }
 
   // Odhlášení
   Future<void> logout() async {
-    await _googleSignIn.signOut();
+    // Na webu se google_sign_in nepoužívá (viz _signInWithGoogleWeb).
+    if (!kIsWeb) await _googleSignIn.signOut();
     await _auth.signOut();
   }
 
   User? get currentUser => _auth.currentUser;
-  Stream<User?> get authStateChanges => _auth.authStateChanges();
-  // Na rozdíl od authStateChanges hlásí i změnu jména (displayName).
+  // Na rozdíl od authStateChanges (používá RootGate) hlásí i změnu jména
+  // (displayName).
   Stream<User?> get userChanges => _auth.userChanges();
 }
