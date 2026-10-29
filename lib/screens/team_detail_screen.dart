@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -7,8 +9,9 @@ import '../services/team_service.dart';
 import '../widgets/account_actions.dart';
 import '../widgets/app_bottom_bar.dart';
 
-/// Detail týmu – roster členů. Trenér zde navíc může měnit role členů,
-/// odebírat je z týmu a tým celý zrušit.
+/// Detail týmu – roster členů. Trenér zde může odebírat hráče. Správce
+/// týmu navíc mění role (přidává a odebírá trenéry), předává vedení
+/// týmu a může tým celý zrušit.
 class TeamDetailScreen extends StatefulWidget {
   const TeamDetailScreen({
     super.key,
@@ -30,21 +33,29 @@ class TeamDetailScreen extends StatefulWidget {
 class _TeamDetailScreenState extends State<TeamDetailScreen> {
   final _teamService = TeamService();
   bool _deleting = false;
-  String? _founderUid;
+  String? _ownerUid;
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _teamSub;
 
   @override
   void initState() {
     super.initState();
-    // Zakladatele týmu (teams/{teamId}.createdBy) potřebujeme znát, aby
-    // šlo v rosteru schovat možnost přepnout ho na hráče – viz
-    // TeamService.updateMemberRole, kde je stejné pravidlo vynucené.
-    _teamService.getTeam(widget.teamId).then((doc) {
+    // Správce týmu se sleduje živě – po předání vedení se obrazovce hned
+    // změní nabízené akce (stejná oprávnění vynucuje firestore.rules).
+    _teamSub = _teamService.streamTeam(widget.teamId).listen((doc) {
       if (!mounted) return;
-      setState(() => _founderUid = doc.data()?['createdBy'] as String?);
+      setState(() => _ownerUid = doc.data()?['ownerUid'] as String?);
     });
   }
 
+  @override
+  void dispose() {
+    _teamSub?.cancel();
+    super.dispose();
+  }
+
   String get _myUid => FirebaseAuth.instance.currentUser?.uid ?? '';
+
+  bool get _isOwner => _ownerUid != null && _ownerUid == _myUid;
 
   Future<void> _changeRole(String uid, String currentRole) async {
     final newRole =
@@ -81,6 +92,44 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
 
     try {
       await _teamService.removeMember(widget.teamId, uid);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    }
+  }
+
+  Future<void> _transferOwnership(String uid, String name, bool isPlayer) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Předat vedení týmu'),
+        content: Text(
+          'Správcem týmu "${widget.teamName}" se stane "$name"'
+          '${isPlayer ? ' a zároveň se stane trenérem' : ''}. '
+          'Ty zůstaneš trenérem, ale tým už nebudeš moct zrušit ani spravovat trenéry.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Zrušit'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Předat vedení'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    try {
+      await _teamService.transferOwnership(widget.teamId, uid);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Správcem týmu je teď $name')),
+      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -145,7 +194,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                 );
               },
             ),
-          if (widget.isCoach)
+          if (_isOwner)
             IconButton(
               icon: const Icon(Icons.delete_forever),
               tooltip: 'Zrušit tým',
@@ -195,7 +244,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                         uid;
                     final isMemberCoach = role == TeamRole.coach;
                     final isMe = uid == _myUid;
-                    final isFounder = uid == _founderUid;
+                    final isOwnerRow = uid == _ownerUid;
 
                     return Card(
                       elevation: 1,
@@ -209,45 +258,18 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                           ),
                         ),
                         title: Text(isMe ? '$name (já)' : name),
-                        subtitle: Text(isMemberCoach ? 'Trenér' : 'Hráč'),
-                        trailing: widget.isCoach
-                            ? Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  if (isFounder)
-                                    const Tooltip(
-                                      message:
-                                          'Zakladatele týmu nelze změnit na hráče ani odebrat z týmu',
-                                      child: Padding(
-                                        padding: EdgeInsets.all(12),
-                                        child: Icon(
-                                          Icons.lock_outline,
-                                          color: Colors.black38,
-                                        ),
-                                      ),
-                                    )
-                                  else
-                                    IconButton(
-                                      icon: Icon(
-                                        isMemberCoach
-                                            ? Icons.arrow_downward
-                                            : Icons.arrow_upward,
-                                      ),
-                                      tooltip: isMemberCoach
-                                          ? 'Nastavit jako hráče'
-                                          : 'Nastavit jako trenéra',
-                                      onPressed: () => _changeRole(uid, role),
-                                    ),
-                                  if (!isMe && !isFounder)
-                                    IconButton(
-                                      icon: const Icon(Icons.person_remove),
-                                      tooltip: 'Odebrat z týmu',
-                                      onPressed: () =>
-                                          _removeMember(uid, name),
-                                    ),
-                                ],
-                              )
-                            : null,
+                        subtitle: Text(
+                          isOwnerRow
+                              ? 'Správce týmu'
+                              : (isMemberCoach ? 'Trenér' : 'Hráč'),
+                        ),
+                        trailing: _memberActions(
+                          uid: uid,
+                          name: name,
+                          role: role,
+                          isOwnerRow: isOwnerRow,
+                          isMe: isMe,
+                        ),
                       ),
                     );
                   },
@@ -256,4 +278,82 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
             ),
     );
   }
+
+  /// Akce u člena soupisky podle oprávnění (stejná vynucuje
+  /// firestore.rules): správce mění role, předává vedení a odebírá
+  /// kohokoli kromě sebe, trenér smí jen odebrat hráče. Správce je zamčený.
+  Widget? _memberActions({
+    required String uid,
+    required String name,
+    required String role,
+    required bool isOwnerRow,
+    required bool isMe,
+  }) {
+    if (!widget.isCoach) return null;
+    if (isOwnerRow) {
+      return const Tooltip(
+        message: 'Správce týmu nelze změnit na hráče ani odebrat z týmu',
+        child: Padding(
+          padding: EdgeInsets.all(12),
+          child: Icon(Icons.lock_outline, color: Colors.black38),
+        ),
+      );
+    }
+
+    final isMemberCoach = role == TeamRole.coach;
+    if (!_isOwner) {
+      if (isMemberCoach || isMe) return null;
+      return IconButton(
+        icon: const Icon(Icons.person_remove),
+        tooltip: 'Odebrat z týmu',
+        onPressed: () => _removeMember(uid, name),
+      );
+    }
+
+    return PopupMenuButton<_MemberAction>(
+      tooltip: 'Možnosti člena',
+      onSelected: (action) {
+        switch (action) {
+          case _MemberAction.toggleRole:
+            _changeRole(uid, role);
+          case _MemberAction.transfer:
+            _transferOwnership(uid, name, !isMemberCoach);
+          case _MemberAction.remove:
+            _removeMember(uid, name);
+        }
+      },
+      itemBuilder: (context) => [
+        PopupMenuItem(
+          value: _MemberAction.toggleRole,
+          child: ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(
+              isMemberCoach ? Icons.arrow_downward : Icons.arrow_upward,
+            ),
+            title: Text(
+              isMemberCoach ? 'Nastavit jako hráče' : 'Nastavit jako trenéra',
+            ),
+          ),
+        ),
+        const PopupMenuItem(
+          value: _MemberAction.transfer,
+          child: ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(Icons.workspace_premium),
+            title: Text('Předat vedení týmu'),
+          ),
+        ),
+        const PopupMenuItem(
+          value: _MemberAction.remove,
+          child: ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(Icons.person_remove),
+            title: Text('Odebrat z týmu'),
+          ),
+        ),
+      ],
+    );
+  }
 }
+
+enum _MemberAction { toggleRole, transfer, remove }

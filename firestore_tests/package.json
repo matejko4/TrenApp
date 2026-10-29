@@ -1,0 +1,13 @@
+{
+  "name": "trenapp-firestore-rules-tests",
+  "private": true,
+  "description": "Testy Firestore Security Rules aplikace TrenApp (spouští se proti Firebase Emulatoru).",
+  "type": "module",
+  "scripts": {
+    "test": "node run-tests.mjs"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "5.0.2",
+    "firebase": "12.19.0"
+  }
+}

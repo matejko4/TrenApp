@@ -43,10 +43,7 @@ Hráč bude moci:
 Trenér bude mít rozšířená oprávnění v rámci svého týmu:
 
 - zobrazit a sdílet pozvánkový kód týmu,
-- spravovat soupisku týmu,
-- měnit role členů (trenér / hráč),
-- odebírat členy z týmu,
-- zrušit celý tým,
+- odebírat hráče z týmu,
 - zadávat společné tréninky pro celý tým (den, čas, místo, popis),
 - zadávat individuální tréninky pro vybrané hráče (nebo všechny najednou),
 - upravovat a rušit zadané tréninky,
@@ -54,19 +51,29 @@ Trenér bude mít rozšířená oprávnění v rámci svého týmu:
 - sledovat plnění individuálních tréninků,
 - komunikovat s hráči v chatu týmu.
 
+### Správce týmu
+
+Kdo tým založí, stane se jeho správcem. Správce má všechna oprávnění trenéra a navíc může:
+
+- povyšovat hráče na trenéry a trenéry měnit na hráče nebo odebírat z týmu,
+- předat vedení týmu jinému členovi (hráč se tím zároveň stane trenérem),
+- zrušit celý tým.
+
 ## 3. Týmy a role
 
 Uživatel může být členem libovolného počtu týmů a v každém z nich může mít jinou roli. Role se proto neukládá k uživateli globálně, ale vždy ve vazbě na konkrétní tým.
 
-- **Trenér** – správce týmu. Zakladatel týmu je vždy trenérem.
+- **Správce** – kdo tým založil, nebo komu bylo vedení předáno. Každý tým má právě jednoho správce a ten je vždy zároveň trenérem.
+- **Trenér** – zadává tréninky a spravuje hráče. Trenéra jmenuje správce.
 - **Hráč** – běžný člen týmu. Každý, kdo se připojí pomocí kódu, je nejprve hráčem.
 
 Pravidla týmů:
 
 - název týmu musí být unikátní (bez ohledu na velikost písmen a mezery),
-- každý tým má unikátní šestimístný pozvánkový kód (bez snadno zaměnitelných znaků jako 0/O nebo 1/I),
-- zakladatele týmu nelze změnit na hráče ani odebrat – tým tak nikdy nezůstane bez trenéra,
-- zakladatele se lze „zbavit“ pouze zrušením celého týmu.
+- každý tým má unikátní osmimístný pozvánkový kód (bez snadno zaměnitelných znaků jako 0/O nebo 1/I),
+- správce týmu nelze změnit na hráče ani odebrat – tým tak nikdy nezůstane bez někoho, kdo ho spravuje,
+- správce může vedení předat jinému členovi týmu (původní správce zůstane trenérem),
+- zrušit tým může jen správce.
 
 ## 4. Tréninky
 
@@ -192,7 +199,9 @@ TrenApp/
 │       ├── training_widgets.dart    – karta tréninku, BUDU / NEBUDU, stavy
 │       └── coming_soon.dart         – zástupný obsah „Připravujeme“
 │
-├── test/
+├── test/                        – testy aplikace (flutter test)
+│
+├── firestore_tests/             – testy bezpečnostních pravidel (Firebase Emulator)
 │
 ├── android/
 ├── ios/
@@ -238,7 +247,7 @@ Obsahuje:
 
 - název
 - pozvánkový kód
-- zakladatele
+- správce (`ownerUid`) – kdo tým aktuálně vede (po založení ten, kdo tým založil)
 - datum vytvoření
 
 ### teams/{teamId}/members/{uid}
@@ -302,22 +311,22 @@ Hráč smí číst jen společné tréninky a individuální tréninky zadané j
 Aplikace využívá systém oprávnění vázaný na konkrétní tým.
 
 ```
-                       TRENAPP
-                          │
-                  Přihlášený uživatel
-                          │
-          ┌───────────────┴───────────────┐
-          │                               │
-   založí tým                     připojí se kódem
-          │                               │
-       Trenér  ───── může povýšit ─────▶  Hráč
-          │                               │
-   správa týmu,                  kalendář, BUDU/NEBUDU,
-   zadávání tréninků,            plnění individuálních
-   přehled účasti                tréninků, chat
+  založí tým ───────────────▶ Správce   (v týmu právě jeden, vždy i trenér)
+  připojí se kódem ─────────▶ Hráč
+  správce povýší hráče ─────▶ Trenér
+  správce předá vedení ─────▶ nový Správce (původní zůstane trenérem)
 ```
 
-Hráč nemá přístup ke správě týmu, nemůže zadávat tréninky a nevidí individuální tréninky ostatních hráčů.
+| Oprávnění | Správce | Trenér | Hráč |
+|---|:---:|:---:|:---:|
+| vidět soupisku a kalendář | ✓ | ✓ | ✓ |
+| odpovídat BUDU / NEBUDU, plnit individuální tréninky | – | – | ✓ |
+| zadávat, upravovat a rušit tréninky, vidět účast | ✓ | ✓ | – |
+| sdílet pozvánkový kód, odebírat hráče | ✓ | ✓ | – |
+| jmenovat trenéry, měnit je na hráče a odebírat | ✓ | – | – |
+| předat vedení týmu, zrušit tým | ✓ | – | – |
+
+Hráč nemá přístup ke správě týmu, nemůže zadávat tréninky a nevidí individuální tréninky ostatních hráčů. Všechna oprávnění vynucují Firestore Security Rules a ověřují je automatické testy (kapitola 16).
 
 ## 10. Hlavní obrazovka
 
@@ -390,7 +399,8 @@ Aplikace obsahuje základní bezpečnostní prvky:
 - přístup k datům týmu pouze pro jeho členy,
 - úpravy týmu a soupisky pouze pro trenéry,
 - zákaz hromadného vypsání pozvánkových kódů,
-- ochrana zakladatele týmu před odebráním nebo degradací,
+- ochrana správce týmu před odebráním nebo degradací; předat vedení a zrušit tým smí jen správce,
+- název a kód týmu nejde po založení měnit,
 - validace vstupních údajů.
 
 ## 15. Instalace
@@ -426,6 +436,28 @@ Soubory `lib/firebase_options.dart` a `android/app/google-services.json` nejsou 
 dart pub global activate flutterfire_cli
 flutterfire configure
 ```
+
+### Podpisový klíč (Google přihlášení)
+
+Přihlášení přes Google funguje jen pro aplikaci podepsanou klíčem, jehož otisk SHA-1 je zaregistrovaný ve Firebase (Nastavení projektu → Android aplikace → otisky). Aby byl otisk na každém počítači stejný, podepisuje se aplikace společným klíčem `android/app/trenapp.keystore`, jehož cestu a hesla obsahuje `android/key.properties`:
+
+```
+storePassword=<heslo ke klíči>
+keyPassword=<heslo k aliasu>
+keyAlias=<alias>
+storeFile=trenapp.keystore
+```
+
+Klíč ani `key.properties` nejsou v repozitáři (viz `android/.gitignore`) a nesmí se nikdy nahrát na GitHub. Na nový počítač se po naklonování projektu nakopírují ze zálohy (např. flashdisku) spolu se soubory Firebase:
+
+| Soubor | Umístění v projektu |
+|---|---|
+| `trenapp.keystore` | `android/app/` |
+| `key.properties` | `android/` |
+| `google-services.json` | `android/app/` |
+| `firebase_options.dart` | `lib/` |
+
+Když `key.properties` chybí, aplikace se podepíše výchozím debug klíčem daného počítače – sestaví se, ale Google přihlášení na ní fungovat nebude.
 
 ### Nasazení bezpečnostních pravidel a indexů
 
@@ -465,7 +497,32 @@ Testovat se budou například:
 - záznam GPS tréninku,
 - chat.
 
-Testy lze spustit příkazem:
+### Automatické testy
+
+Projekt má dvě sady automatických testů.
+
+**Testy bezpečnostních pravidel** (`firestore_tests/rules.test.js`, 60 testů) ověřují `firestore.rules` proti lokálnímu Firebase Emulatoru – skutečná databáze se nepoužívá. Každý test provede jednu operaci jako konkrétní uživatel (správce, trenér, hráč, nečlen týmu, nepřihlášený) a ověří, že ji pravidla povolí, nebo zamítnou. Pokrývají například:
+
+- hráč si nemůže sám změnit roli na trenéra ani se připojit rovnou jako trenér,
+- trenéry jmenuje, mění na hráče a odebírá jen správce; trenér smí odebrat jen hráče,
+- správce týmu nejde změnit na hráče ani odebrat; vedení předá a tým zruší jen on,
+- vedení jde předat jen členovi týmu, který je (nebo se stejnou dávkou stane) trenérem,
+- název ani kód týmu nejde po založení přepsat,
+- nečlen nevidí tým, soupisku ani tréninky; pozvánkové kódy nejde hromadně vypsat,
+- druhý tým se stejným názvem se nezaloží,
+- hráč vidí jen společné tréninky a individuální tréninky zadané jemu,
+- hráč smí změnit jen svou odpověď (BUDU / NEBUDU u společného, splněno u individuálního tréninku),
+- založení týmu, připojení kódem, změna role, odebrání člena i zrušení týmu projdou ve stejné podobě, v jaké je zapisuje aplikace.
+
+Spuštění (potřebuje Node.js, Javu 21+ a Firebase CLI; první spuštění stáhne emulátor):
+
+```
+cd firestore_tests
+npm install
+npm test
+```
+
+**Testy aplikace** (`test/`) ověřují logiku bez připojení k Firebase: formátování data a času, stavy tréninku (naplánovaný / splněný / nesplněný, do kdy jde odpovídat) a souhrn odpovědí, který vidí trenér v kalendáři.
 
 ```
 flutter test

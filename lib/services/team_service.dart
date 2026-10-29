@@ -26,7 +26,7 @@ Map<String, String> playerNames(
 /// týmů, ve kterých je aktuální uživatel členem.
 ///
 /// Datový model:
-/// - teams/{teamId}                      – základní údaje o týmu (název, kód, zakladatel)
+/// - teams/{teamId}                      – základní údaje o týmu (název, kód, správce)
 /// - teams/{teamId}/members/{uid}        – roster týmu (jméno, role, e-mail, kdy se přidal)
 /// - users/{uid}/teams/{teamId}          – rychlý přehled týmů daného uživatele a jeho role v nich
 /// - team_codes/{code}                   – mapování pozvánkového kódu na tým (viz níže)
@@ -91,7 +91,7 @@ class TeamService {
     return name.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
   }
 
-  /// Vytvoří nový tým. Zakladatel se stává trenérem tohoto týmu.
+  /// Vytvoří nový tým. Zakladatel se stává jeho správcem a trenérem.
   /// Vrací id nově vytvořeného týmu.
   ///
   /// Vyhodí Exception, pokud už tým se stejným názvem existuje (viz
@@ -131,13 +131,13 @@ class TeamService {
 
     // Tým se zapisuje samostatně a až poté (v dávce) členství a index u
     // uživatele. Bezpečnostní pravidla pro vznik "coach" členství ověřují
-    // teams/{teamId}.createdBy, což vyžaduje, aby dokument týmu už v době
+    // správce v teams/{teamId}, což vyžaduje, aby dokument týmu už v době
     // vyhodnocení pravidel existoval – v rámci jedné dávky by ještě
     // neexistoval, proto dva kroky místo jedné velké dávky.
     await teamRef.set({
       'name': trimmedName,
       'code': code,
-      'createdBy': user.uid,
+      'ownerUid': user.uid,
       'createdAt': FieldValue.serverTimestamp(),
     });
 
@@ -245,15 +245,16 @@ class TeamService {
         .snapshots();
   }
 
-  Future<DocumentSnapshot<Map<String, dynamic>>> getTeam(String teamId) {
-    return _db.collection('teams').doc(teamId).get();
+  /// Stream dokumentu týmu – detail týmu z něj sleduje, kdo je správce.
+  Stream<DocumentSnapshot<Map<String, dynamic>>> streamTeam(String teamId) {
+    return _db.collection('teams').doc(teamId).snapshots();
   }
 
-  /// Změní roli člena týmu (coach/player). Smí jen trenér týmu.
+  /// Změní roli člena týmu (coach/player). Smí jen správce týmu.
   ///
-  /// Zakladatel týmu (teams/{teamId}.createdBy) nejde přepnout na hráče –
-  /// ani sám sebe, ani jiným trenérem – aby tým nikdy nezůstal bez
-  /// trenéra, kterého by šlo znovu upravovat (viz i firestore.rules).
+  /// Správce nejde přepnout na hráče, aby tým nikdy nezůstal bez
+  /// trenéra, který ho spravuje (viz i firestore.rules). Vedení může
+  /// správce nejdřív předat jinému členovi ([transferOwnership]).
   ///
   /// Kromě záznamu v rosteru (teams/{teamId}/members/{uid}) se role
   /// aktualizuje i v indexu users/{uid}/teams/{teamId}, aby zůstala
@@ -265,9 +266,8 @@ class TeamService {
 
     if (role == TeamRole.player) {
       final teamDoc = await _db.collection('teams').doc(teamId).get();
-      final createdBy = teamDoc.data()?['createdBy'] as String?;
-      if (createdBy == uid) {
-        throw Exception('Zakladatele týmu nelze změnit na hráče');
+      if (teamDoc.data()?['ownerUid'] == uid) {
+        throw Exception('Správce týmu nelze změnit na hráče');
       }
     }
 
@@ -283,16 +283,17 @@ class TeamService {
     await batch.commit();
   }
 
-  /// Odebere člena z týmu. Smí jen trenér týmu.
+  /// Odebere člena z týmu. Hráče smí odebrat každý trenér, trenéra jen
+  /// správce týmu.
   ///
-  /// Zakladatele týmu takto odebrat nejde (viz i firestore.rules) – tým
-  /// by tak mohl přijít o posledního/jediného trenéra. Jediný způsob, jak
-  /// se zakladatele „zbavit“, je zrušit tým celý (viz [deleteTeam]).
+  /// Správce takto odebrat nejde (viz i firestore.rules) – tým by přišel
+  /// o toho, kdo ho spravuje. Správce může vedení předat jinému členovi
+  /// ([transferOwnership]), nebo tým celý zrušit ([deleteTeam]).
   Future<void> removeMember(String teamId, String uid) async {
     final teamDoc = await _db.collection('teams').doc(teamId).get();
-    final createdBy = teamDoc.data()?['createdBy'] as String?;
-    if (createdBy == uid) {
-      throw Exception('Zakladatele nelze z týmu odebrat, tým lze pouze celý zrušit');
+    if (teamDoc.data()?['ownerUid'] == uid) {
+      throw Exception(
+          'Správce nelze z týmu odebrat. Může předat vedení jinému členovi, nebo tým zrušit.');
     }
 
     final batch = _db.batch();
@@ -305,9 +306,33 @@ class TeamService {
     await batch.commit();
   }
 
+  /// Předá vedení týmu jinému členovi. Smí jen současný správce.
+  ///
+  /// Nový správce musí být trenér – hráče proto stejná dávka zároveň
+  /// povýší (v rosteru i v indexu users/{uid}/teams). Původní správce
+  /// zůstane trenérem.
+  Future<void> transferOwnership(String teamId, String newOwnerUid) async {
+    final teamRef = _db.collection('teams').doc(teamId);
+    final member = await teamRef.collection('members').doc(newOwnerUid).get();
+    if (!member.exists) {
+      throw Exception('Vedení lze předat jen členovi týmu');
+    }
+
+    final batch = _db.batch();
+    if (member.data()?['role'] != TeamRole.coach) {
+      batch.update(member.reference, {'role': TeamRole.coach});
+      batch.update(
+        _db.collection('users').doc(newOwnerUid).collection('teams').doc(teamId),
+        {'role': TeamRole.coach},
+      );
+    }
+    batch.update(teamRef, {'ownerUid': newOwnerUid});
+    await batch.commit();
+  }
+
   /// Úplně zruší tým – smaže samotný tým, celý roster (a jeho index u
   /// každého člena), tréninky, pozvánkový kód i zamluvený název týmu.
-  /// Smí jen trenér týmu. Operace je nevratná.
+  /// Smí jen správce týmu. Operace je nevratná.
   ///
   /// Podkolekce (members, trainings) Firestore se smazáním dokumentu týmu
   /// sám nesmaže, proto se mažou ručně ve stejné dávce.

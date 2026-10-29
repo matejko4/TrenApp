@@ -22,6 +22,16 @@ service cloud.firestore {
         get(/databases/$(database)/documents/teams/$(teamId)/members/$(request.auth.uid)).data.role == 'coach';
     }
 
+    // Správce týmu (teams/{teamId}.ownerUid) – kdo tým založil, nebo komu
+    // bylo vedení předáno.
+    function teamOwner(teamId) {
+      return get(/databases/$(database)/documents/teams/$(teamId)).data.ownerUid;
+    }
+
+    function isTeamOwner(teamId) {
+      return isSignedIn() && teamOwner(teamId) == request.auth.uid;
+    }
+
     // users/{uid} – veřejný profil uživatele (jméno, email atd.)
     match /users/{uid} {
       allow read: if isSignedIn();
@@ -30,28 +40,34 @@ service cloud.firestore {
       allow delete: if false;
 
       // users/{uid}/teams/{teamId} – přehled týmů daného uživatele a jeho
-      // role v nich. Zapisuje si ho vždy jen sám uživatel (TeamService ho
-      // volá jako aktuálně přihlášený uid, ať zakládá, nebo se připojuje).
-      // isTeamCoach(teamId) navíc dovoluje trenérovi týmu zapisovat/mazat
-      // tento index i jinému členovi – potřeba pro změnu role člena
-      // (TeamService.updateMemberRole) a pro úklid při rušení týmu
-      // (TeamService.deleteTeam).
+      // role v nich. Zakládá si ho sám uživatel (při založení týmu nebo
+      // připojení kódem). Jinému členovi ho smí upravit správce (změna
+      // role, předání vedení) a smazat trenér (odebrání hráče, zrušení týmu).
       match /teams/{teamId} {
-        allow read, write: if isMe(uid) || isTeamCoach(teamId);
+        allow read: if isMe(uid) || isTeamCoach(teamId);
+        allow create, update: if isMe(uid) || isTeamOwner(teamId);
+        allow delete: if isMe(uid) || isTeamCoach(teamId);
       }
     }
 
-    // teams/{teamId} – základní údaje týmu (název, kód, zakladatel)
+    // teams/{teamId} – základní údaje týmu (název, kód, správce)
     match /teams/{teamId} {
       allow read: if isTeamMember(teamId);
-      allow create: if isSignedIn() && request.resource.data.createdBy == request.auth.uid;
-      allow update: if isTeamCoach(teamId);
-      // Zrušení týmu smí jen trenér. Batch v TeamService.deleteTeam maže
+      // Kdo tým zakládá, je jeho správcem.
+      allow create: if isSignedIn() && request.resource.data.ownerUid == request.auth.uid;
+      // Jediná povolená úprava týmu je předání vedení
+      // (TeamService.transferOwnership): smí jen správce, mění se jen
+      // ownerUid a nový správce musí být po dávce trenérem týmu (hráče
+      // stejná dávka povýší). Ostatní pole (název, kód) jsou zamčená.
+      allow update: if isTeamOwner(teamId) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ownerUid']) &&
+        getAfter(/databases/$(database)/documents/teams/$(teamId)/members/$(request.resource.data.ownerUid)).data.role == 'coach';
+      // Zrušení týmu smí jen správce. Batch v TeamService.deleteTeam maže
       // spolu s tímto dokumentem i celý roster, team_codes a team_names –
       // pravidla pro celou dávku se vyhodnocují vůči stavu databáze před
-      // dávkou, takže isTeamCoach(teamId) tu platí, i když se v téže dávce
-      // maže i vlastní členství trenéra.
-      allow delete: if isTeamCoach(teamId);
+      // dávkou, takže isTeamOwner(teamId) tu platí, i když se v téže dávce
+      // maže i tým samotný.
+      allow delete: if isTeamOwner(teamId);
 
       // teams/{teamId}/members/{uid} – roster týmu
       match /members/{uid} {
@@ -61,33 +77,37 @@ service cloud.firestore {
         allow read: if isMe(uid) || isTeamMember(teamId);
         // Připojení kódem: kdokoliv přihlášený se smí přidat sám sobě,
         // ale jen jako 'player'. Role 'coach' smí vzniknout jen pro
-        // zakladatele týmu (ten už v tuto chvíli existuje – zapisuje se
+        // správce týmu (tým už v tuto chvíli existuje – zapisuje se
         // dřív, viz TeamService.createTeam) a ne dodatečným zápisem od kohokoli jiného.
         allow create: if isMe(uid) && (
           request.resource.data.role == 'player' ||
-          (request.resource.data.role == 'coach' &&
-            get(/databases/$(database)/documents/teams/$(teamId)).data.createdBy == request.auth.uid)
+          (request.resource.data.role == 'coach' && isTeamOwner(teamId))
         );
-        // Zakladatele týmu nejde přepnout na hráče (TeamService.updateMemberRole
-        // má stejnou kontrolu) – tým by tak mohl zůstat bez trenéra.
-        // Člen si navíc smí sám změnit své jméno (AuthService.updateName) –
-        // ale nic jiného, hlavně ne roli.
-        allow update: if (isTeamCoach(teamId) && !(
-          request.resource.data.role == 'player' &&
-          uid == get(/databases/$(database)/documents/teams/$(teamId)).data.createdBy
-        )) || (
+        // Roli (povýšení na trenéra i změnu na hráče) mění jen správce a
+        // sebe na hráče změnit nemůže – tým by zůstal bez správce-trenéra
+        // (TeamService.updateMemberRole má stejnou kontrolu). Člen si navíc
+        // smí sám změnit své jméno (AuthService.updateName) – ale nic jiného,
+        // hlavně ne roli.
+        allow update: if (
+          isTeamOwner(teamId) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role']) &&
+          request.resource.data.role in ['coach', 'player'] &&
+          !(uid == teamOwner(teamId) && request.resource.data.role == 'player')
+        ) || (
           isMe(uid) &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name'])
         );
-        // Zakladatele nejde z rosteru odebrat samostatně (TeamService.removeMember
-        // má stejnou kontrolu) – tým by mohl zůstat bez trenéra. Výjimka je
-        // rušení celého týmu (TeamService.deleteTeam): tam se ve stejné dávce
-        // maže i teams/{teamId}, což existsAfter() ověří (existsAfter/getAfter
-        // vyhodnocují stav PO celé dávce/transakci, ne jen po tomto jednom zápisu).
-        allow delete: if isTeamCoach(teamId) && (
-          uid != get(/databases/$(database)/documents/teams/$(teamId)).data.createdBy ||
-          !existsAfter(/databases/$(database)/documents/teams/$(teamId))
-        );
+        // Hráče smí odebrat každý trenér, trenéra jen správce. Správce sám
+        // odebrat nejde (TeamService.removeMember má stejnou kontrolu) –
+        // výjimkou je zrušení celého týmu (TeamService.deleteTeam), kdy se
+        // ve stejné dávce maže i teams/{teamId}, což ověří existsAfter()
+        // (existsAfter/getAfter vyhodnocují stav PO celé dávce, ne jen po
+        // tomto jednom zápisu).
+        allow delete: if (isTeamCoach(teamId) && resource.data.role == 'player') ||
+          (isTeamOwner(teamId) && (
+            uid != teamOwner(teamId) ||
+            !existsAfter(/databases/$(database)/documents/teams/$(teamId))
+          ));
       }
 
       // teams/{teamId}/trainings/{trainingId} – tréninky týmu (viz
@@ -148,11 +168,11 @@ service cloud.firestore {
       allow get: if isSignedIn();
       allow list: if false;
       allow create: if isSignedIn() &&
-        get(/databases/$(database)/documents/teams/$(request.resource.data.teamId)).data.createdBy == request.auth.uid;
+        get(/databases/$(database)/documents/teams/$(request.resource.data.teamId)).data.ownerUid == request.auth.uid;
       allow update: if false;
       // Smazání kódu je součástí rušení týmu (TeamService.deleteTeam) –
-      // smí jen trenér týmu, na který kód odkazuje.
-      allow delete: if isTeamCoach(resource.data.teamId);
+      // smí jen správce týmu, na který kód odkazuje.
+      allow delete: if isTeamOwner(resource.data.teamId);
     }
 
     // team_names/{normalizedName} – vynucení unikátního názvu týmu. Doc id
@@ -167,9 +187,9 @@ service cloud.firestore {
       allow create: if isSignedIn() && request.resource.data.createdBy == request.auth.uid;
       allow update: if false;
       // Smazání zamluveného názvu je součástí rušení týmu
-      // (TeamService.deleteTeam) – smí jen trenér týmu, ke kterému je
+      // (TeamService.deleteTeam) – smí jen správce týmu, ke kterému je
       // název přiřazený.
-      allow delete: if isTeamCoach(resource.data.teamId);
+      allow delete: if isTeamOwner(resource.data.teamId);
     }
   }
 }
