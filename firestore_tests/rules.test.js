@@ -41,7 +41,8 @@ import {
 //  hrac    – hráč týmu tym1, má zadaný individuální trénink „beh“
 //  hrac2   – hráč týmu tym1 bez individuálního tréninku
 //  cizi    – přihlášený uživatel, který v týmu není
-const TEAM = 'tym1';
+// ID týmu je upravený název (TeamService.teamIdFromName): „SFC“ → „sfc“.
+const TEAM = 'sfc';
 const CODE = 'ABCD2345';
 const MEMBERS = [
   ['trener', 'coach'],
@@ -154,25 +155,35 @@ describe('Tým a soupiska', () => {
   });
 
   it('tým nejde založit s jiným správcem než sám sebou', async () => {
-    const team = doc(db('cizi'), 'teams', 'tym2');
+    const team = doc(db('cizi'), 'teams', 'x');
     await assertFails(setDoc(team, { name: 'X', code: 'X', ownerUid: 'trener' }));
     await assertFails(setDoc(team, { name: 'X', code: 'X' }));
   });
 
   it('založení týmu projde v jedné dávce stejně jako v TeamService.createTeam', async () => {
     const novy = db('cizi');
+    const id = 'nový tým';
     const batch = writeBatch(novy);
-    batch.set(doc(novy, 'teams', 'tym2'), {
+    batch.set(doc(novy, 'teams', id), {
       name: 'Nový tým', code: 'ZZZZ2222', ownerUid: 'cizi', createdAt: serverTimestamp(),
     });
-    batch.set(doc(novy, 'team_codes', 'ZZZZ2222'), { teamId: 'tym2', teamName: 'Nový tým' });
-    batch.set(doc(novy, 'teams', 'tym2', 'members', 'cizi'), { uid: 'cizi', name: 'cizi', role: 'coach' });
-    batch.set(doc(novy, 'users', 'cizi', 'teams', 'tym2'), { teamId: 'tym2', teamName: 'Nový tým', role: 'coach' });
+    batch.set(doc(novy, 'team_codes', 'ZZZZ2222'), { teamId: id, teamName: 'Nový tým' });
+    batch.set(doc(novy, 'teams', id, 'members', 'cizi'), { uid: 'cizi', name: 'cizi', role: 'coach' });
+    batch.set(doc(novy, 'users', 'cizi', 'teams', id), { teamId: id, teamName: 'Nový tým', role: 'coach' });
     await assertSucceeds(batch.commit());
   });
 
-  it('dva týmy můžou mít stejný název', async () => {
-    await assertSucceeds(setDoc(doc(db('cizi'), 'teams', 'tym2'), { name: 'SFC', code: 'ZZZZ2222', ownerUid: 'cizi' }));
+  it('ID týmu musí odpovídat názvu (malá písmena A–Z, bez mezer navíc)', async () => {
+    const cizi = db('cizi');
+    await assertFails(setDoc(doc(cizi, 'teams', 'tym2'), { name: 'Nový tým', ownerUid: 'cizi' }));
+    await assertSucceeds(setDoc(doc(cizi, 'teams', 'novy tym'), { name: '  Novy   TYM ', ownerUid: 'cizi' }));
+    // lower() v pravidlech diakritiku nepřevádí – stejně jako teamIdFromName.
+    await assertSucceeds(setDoc(doc(cizi, 'teams', 'Čez'), { name: 'ČEZ', ownerUid: 'cizi' }));
+  });
+
+  it('druhý tým se stejným názvem nejde založit (ani s jinými písmeny a mezerami)', async () => {
+    await assertFails(setDoc(doc(db('cizi'), 'teams', 'sfc'), { name: 'SFC', code: 'ZZZZ2222', ownerUid: 'cizi' }));
+    await assertFails(setDoc(doc(db('cizi'), 'teams', 'sfc'), { name: ' sfc ', code: 'ZZZZ2222', ownerUid: 'cizi' }));
   });
 });
 
@@ -203,9 +214,24 @@ describe('Připojení pozvánkovým kódem', () => {
     // Kontrola, jestli už uživatel není členem (čte vlastní, zatím neexistující členství).
     await assertSucceeds(getDoc(doc(cizi, 'teams', TEAM, 'members', 'cizi')));
     const batch = writeBatch(cizi);
-    batch.set(doc(cizi, 'teams', TEAM, 'members', 'cizi'), { uid: 'cizi', name: 'cizi', role: 'player' });
+    batch.set(doc(cizi, 'teams', TEAM, 'members', 'cizi'), { uid: 'cizi', name: 'cizi', role: 'player', joinCode: CODE });
     batch.set(doc(cizi, 'users', 'cizi', 'teams', TEAM), { teamId: TEAM, teamName: 'SFC', role: 'player' });
     await assertSucceeds(batch.commit());
+  });
+
+  it('bez kódu nebo se špatným kódem se do týmu připojit nejde', async () => {
+    const member = doc(db('cizi'), 'teams', TEAM, 'members', 'cizi');
+    await assertFails(setDoc(member, { uid: 'cizi', name: 'cizi', role: 'player' }));
+    await assertFails(setDoc(member, { uid: 'cizi', name: 'cizi', role: 'player', joinCode: 'ZZZZ2222' }));
+  });
+
+  it('odebraný hráč se bez kódu nevrátí, i když ID týmu zná', async () => {
+    const trener = db('trener');
+    const batch = writeBatch(trener);
+    batch.delete(doc(trener, 'teams', TEAM, 'members', 'hrac'));
+    batch.delete(doc(trener, 'users', 'hrac', 'teams', TEAM));
+    await assertSucceeds(batch.commit());
+    await assertFails(setDoc(doc(db('hrac'), 'teams', TEAM, 'members', 'hrac'), { uid: 'hrac', name: 'hrac', role: 'player' }));
   });
 
   it('nikdo se nepřipojí rovnou jako trenér', async () => {

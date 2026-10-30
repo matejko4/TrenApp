@@ -19,6 +19,20 @@ enum TeamRole {
 String memberName(Map<String, dynamic> memberData) =>
     memberData['name'] as String? ?? 'Bez jména';
 
+/// ID dokumentu týmu z jeho názvu: bez mezer na krajích, vícenásobné
+/// mezery sloučené do jedné a písmena A–Z malá („  SFC   Praha “ →
+/// „sfc praha“). Díky tomu databáze sama hlídá unikátní název týmu –
+/// firestore.rules při založení ověřují, že ID odpovídá názvu, a dokument
+/// se stejným ID už znovu založit nejde.
+///
+/// Na malá se převádí jen písmena bez diakritiky, protože stejně to umí
+/// funkce lower() v pravidlech – „ČEZ“ a „čez“ jsou tak dva různé týmy
+/// a stejně tak „Sparta“ a „Spárta“.
+String teamIdFromName(String name) => name
+    .trim()
+    .replaceAllMapped(RegExp('[A-Z]'), (m) => m[0]!.toLowerCase())
+    .replaceAll(RegExp(' +'), ' ');
+
 /// Hráči (bez trenérů) ze soupisky týmu jako uid -> jméno.
 Map<String, String> playerNames(
     List<QueryDocumentSnapshot<Map<String, dynamic>>> members) {
@@ -33,8 +47,10 @@ Map<String, String> playerNames(
 /// týmů, ve kterých je aktuální uživatel členem.
 ///
 /// Datový model:
-/// - teams/{teamId}                      – základní údaje o týmu (název, kód, správce)
-/// - teams/{teamId}/members/{uid}        – roster týmu (jméno, role, kdy se přidal)
+/// - teams/{teamId}                      – základní údaje o týmu (název, kód, správce);
+///                                          ID = upravený název (viz teamIdFromName)
+/// - teams/{teamId}/members/{uid}        – roster týmu (jméno, role, kdy se přidal,
+///                                          u hráče kód, kterým se připojil)
 /// - users/{uid}/teams/{teamId}          – rychlý přehled týmů daného uživatele a jeho role v nich
 /// - team_codes/{code}                   – mapování pozvánkového kódu na tým (viz níže)
 ///
@@ -93,10 +109,25 @@ class TeamService {
   /// v jedné dávce – vznikne buď všechno, nebo nic. Pravidla pro kód
   /// a trenérské členství proto ověřují správce přes getAfter() (stav po
   /// celé dávce), protože dokument týmu před dávkou ještě neexistuje.
+  ///
+  /// Tým se ukládá pod ID z názvu (teamIdFromName). Když už tým se stejným
+  /// názvem existuje, pravidla dávku zamítnou a vyhodí se hláška.
   Future<String> createTeam(String name) async {
     final trimmedName = name.trim();
     if (trimmedName.isEmpty) {
       throw AppException('Zadej název týmu');
+    }
+    if (trimmedName.length > 50) {
+      throw AppException('Název týmu může mít nejvýše 50 znaků');
+    }
+    // Název je zároveň ID dokumentu – lomítko by rozdělilo cestu
+    // a „.“, „..“ a „__…__“ Firestore jako ID nepovoluje.
+    final teamId = teamIdFromName(trimmedName);
+    if (teamId.contains('/') ||
+        teamId == '.' ||
+        teamId == '..' ||
+        (teamId.startsWith('__') && teamId.endsWith('__'))) {
+      throw AppException('Tenhle název týmu nejde použít, zkus jiný');
     }
 
     final user = _auth.currentUser;
@@ -104,7 +135,7 @@ class TeamService {
 
     final code = await _generateUniqueCode();
     final myName = await _myName(user);
-    final teamRef = _db.collection('teams').doc();
+    final teamRef = _db.collection('teams').doc(teamId);
 
     final batch = _db.batch();
 
@@ -140,7 +171,17 @@ class TeamService {
       },
     );
 
-    await batch.commit();
+    try {
+      await batch.commit();
+    } on FirebaseException catch (e) {
+      // Tým se stejným názvem už existuje – zápis do jeho dokumentu by byl
+      // úprava cizího týmu a pravidla ho zamítnou.
+      if (e.code == 'permission-denied') {
+        throw AppException(
+            'Tým s názvem "$trimmedName" už existuje, zvol jiný název');
+      }
+      rethrow;
+    }
     return teamRef.id;
   }
 
@@ -178,6 +219,9 @@ class TeamService {
       'uid': user.uid,
       'name': myName,
       'role': TeamRole.player.name,
+      // Pravidla ho porovnají s kódem týmu – bez správného kódu se do
+      // týmu připojit nejde, ani když člověk zná ID týmu.
+      'joinCode': normalized,
       'joinedAt': FieldValue.serverTimestamp(),
     });
 

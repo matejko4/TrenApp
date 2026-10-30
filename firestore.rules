@@ -50,11 +50,19 @@ service cloud.firestore {
       }
     }
 
-    // teams/{teamId} – základní údaje týmu (název, kód, správce)
+    // teams/{teamId} – základní údaje týmu (název, kód, správce). ID
+    // dokumentu je upravený název týmu (viz TeamService.teamIdFromName).
     match /teams/{teamId} {
       allow read: if isTeamMember(teamId);
-      // Kdo tým zakládá, je jeho správcem.
-      allow create: if isSignedIn() && request.resource.data.ownerUid == request.auth.uid;
+      // Kdo tým zakládá, je jeho správcem. ID dokumentu musí být upravený
+      // název (písmena A–Z malá – lower() diakritiku nepřevádí –, bez
+      // okrajových a vícenásobných mezer) – tím
+      // databáze sama hlídá unikátní název: založení týmu s už použitým
+      // názvem je zápis do existujícího dokumentu, tedy úprava, a tu
+      // pravidla níže nedovolí.
+      allow create: if isSignedIn() &&
+        request.resource.data.ownerUid == request.auth.uid &&
+        teamId == request.resource.data.name.lower().trim().replace(' +', ' ');
       // Jediná povolená úprava týmu je předání vedení
       // (TeamService.transferOwnership): smí jen správce, mění se jen
       // ownerUid a nový správce musí být po dávce trenérem týmu (hráče
@@ -75,12 +83,16 @@ service cloud.firestore {
         // si existenci VLASTNÍHO členství ještě předtím, než je členem
         // (TeamService.joinTeamByCode kontroluje, jestli už v týmu není).
         allow read: if isMe(uid) || isTeamMember(teamId);
-        // Připojení kódem: kdokoliv přihlášený se smí přidat sám sobě,
-        // ale jen jako 'player'. Role 'coach' smí vzniknout jen pro
-        // správce týmu při jeho založení (TeamService.createTeam) – tým
-        // vzniká ve stejné dávce, proto getAfter() (stav po celé dávce).
+        // Připojení kódem: kdokoliv přihlášený se smí přidat sám sobě, ale
+        // jen jako 'player' a jen se správným pozvánkovým kódem – joinCode
+        // v členství se porovná s kódem týmu. Samotná znalost ID týmu
+        // (název, nebo ji má třeba odebraný hráč) k připojení nestačí.
+        // Role 'coach' smí vzniknout jen pro správce týmu při jeho založení
+        // (TeamService.createTeam) – tým vzniká ve stejné dávce, proto
+        // getAfter() (stav po celé dávce).
         allow create: if isMe(uid) && (
-          request.resource.data.role == 'player' ||
+          (request.resource.data.role == 'player' &&
+            request.resource.data.joinCode == get(/databases/$(database)/documents/teams/$(teamId)).data.code) ||
           (request.resource.data.role == 'coach' &&
             getAfter(/databases/$(database)/documents/teams/$(teamId)).data.ownerUid == request.auth.uid)
         );

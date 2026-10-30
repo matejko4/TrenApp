@@ -69,7 +69,8 @@ Uživatel může být členem libovolného počtu týmů a v každém z nich mů
 
 Pravidla týmů:
 
-- název týmu nemusí být unikátní – tým se hledá a připojuje podle kódu,
+- název týmu musí být unikátní – nerozlišují se mezery navíc ani velká a malá písmena A–Z (písmena s diakritikou se rozlišují, „ČEZ“ a „čez“ jsou dva týmy); hlídá to přímo databáze, protože upravený název je zároveň ID dokumentu týmu,
+- k týmu se jde připojit jen se správným pozvánkovým kódem – kód ověřují bezpečnostní pravidla, samotná znalost ID týmu nestačí,
 - každý tým má unikátní osmimístný pozvánkový kód (bez snadno zaměnitelných znaků jako 0/O nebo 1/I),
 - správce týmu nelze změnit na hráče ani odebrat – tým tak nikdy nezůstane bez někoho, kdo ho spravuje,
 - správce může vedení předat jinému členovi týmu (původní správce zůstane trenérem),
@@ -242,7 +243,7 @@ Obsahuje:
 
 ### teams/{teamId}
 
-Tým.
+Tým. ID dokumentu je upravený název týmu (bez mezer navíc, písmena A–Z malá), např. „SFC Praha“ → `sfc praha` – díky tomu databáze sama hlídá, že dva týmy nemají stejný název.
 
 Obsahuje:
 
@@ -260,6 +261,7 @@ Obsahuje:
 - ID uživatele
 - jméno (kopie z users/{uid}, při změně jména se aktualizuje ve všech týmech)
 - roli (trenér / hráč)
+- u hráče kód, kterým se připojil (`joinCode`) – pravidla ho při připojení porovnají s kódem týmu
 
 E-mail se do soupisky neukládá – soupisku čtou všichni členové týmu a pravidla nejdou omezit na jednotlivá pole dokumentu.
 - datum připojení
@@ -390,7 +392,7 @@ Aplikace obsahuje základní bezpečnostní prvky:
 - oprávnění vynucená Firestore Security Rules, nikoli jen v aplikaci,
 - přístup k datům týmu pouze pro jeho členy,
 - úpravy týmu a soupisky pouze pro trenéry,
-- zákaz hromadného vypsání pozvánkových kódů,
+- zákaz hromadného vypsání pozvánkových kódů; připojení k týmu jen se správným kódem ověřeným pravidly,
 - ochrana správce týmu před odebráním nebo degradací; předat vedení a zrušit tým smí jen správce,
 - název a kód týmu nejde po založení měnit,
 - validace vstupních údajů.
@@ -493,9 +495,11 @@ Testovat se budou například:
 
 Projekt má dvě sady automatických testů.
 
-**Testy bezpečnostních pravidel** (`firestore_tests/rules.test.js`, 61 testů) ověřují `firestore.rules` proti lokálnímu Firebase Emulatoru – skutečná databáze se nepoužívá. Každý test provede jednu operaci jako konkrétní uživatel (správce, trenér, hráč, nečlen týmu, nepřihlášený) a ověří, že ji pravidla povolí, nebo zamítnou. Pokrývají například:
+**Testy bezpečnostních pravidel** (`firestore_tests/rules.test.js`, 64 testů) ověřují `firestore.rules` proti lokálnímu Firebase Emulatoru – skutečná databáze se nepoužívá. Každý test provede jednu operaci jako konkrétní uživatel (správce, trenér, hráč, nečlen týmu, nepřihlášený) a ověří, že ji pravidla povolí, nebo zamítnou. Pokrývají například:
 
 - hráč si nemůže sám změnit roli na trenéra ani se připojit rovnou jako trenér,
+- bez správného kódu se do týmu nikdo nepřipojí – ani odebraný hráč, který ID týmu zná,
+- druhý tým se stejným názvem nejde založit a ID týmu musí odpovídat jeho názvu,
 - trenéry jmenuje, mění na hráče a odebírá jen správce; trenér smí odebrat jen hráče,
 - správce týmu nejde změnit na hráče ani odebrat; vedení předá a tým zruší jen on,
 - vedení jde předat jen členovi týmu, který je (nebo se stejnou dávkou stane) trenérem,
