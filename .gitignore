@@ -47,6 +47,10 @@ app.*.map.json
 # Testy Firestore pravidel (Node.js)
 node_modules/
 
+# Klíče servisního účtu Firebase – nikdy nenahrávat na GitHub
+*firebase-adminsdk*.json
+service-account*.json
+
 # Firebase
 lib/firebase_options.dart
 android/app/google-services.json

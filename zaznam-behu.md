@@ -45,7 +45,8 @@ je zapomněl commitnout a pushnout – zeptej se ho.
   location) deklaruje manifest samotného pluginu, do aplikace se nepřidává.
 - Dřívější úklid kódu (také necommitnutý), na který navazuj:
   - `lib/widgets/common.dart`: `SectionTitle`, `RoleAvatar`, `confirmDialog(...)`.
-  - `lib/utils/error_text.dart`: `errorText(e)` – text chyby bez „Exception: “.
+  - `lib/utils/error_text.dart`: `AppException('česká hláška')` pro chyby ze
+    služeb a `errorText(e)`, která z jakékoli chyby udělá českou hlášku.
   - `lib/widgets/account_actions.dart`: `logOut(context)`.
   - Barvy AppBaru jsou v `appBarTheme` v `main.dart` – v obrazovkách je nenastavuj.
   - Login/logout nenavigují ručně, přepínání dělá `RootGate` přes streamy.
@@ -200,7 +201,7 @@ nebo „–“).
   `lib/services/run_service.dart` (oprávnění, GPS stream, uložení).
 - Stav obrazovky přes `StatefulWidget` + `setState`. Streamy ukládat do
   `late final` v `State`, ne vytvářet v `build()`.
-- Chyby ze služeb přes `throw Exception('česká hláška')`, v UI přes
+- Chyby ze služeb přes `throw AppException('česká hláška')`, v UI přes
   `errorText(e)`. Po `await` kontrolovat `mounted`.
 - Komentáře česky, vysvětlují *proč*. Texty v UI česky.
 - Po změnách spustit `flutter analyze` (musí být bez chyb).

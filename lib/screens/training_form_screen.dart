@@ -94,7 +94,7 @@ class _TrainingFormScreenState extends State<TrainingFormScreen> {
       _error = '';
     });
     try {
-      await _trainingService.saveTraining(
+      final sent = await _trainingService.saveTraining(
         teamId: widget.teamId,
         trainingId: widget.training?.id,
         kind: _kind,
@@ -107,7 +107,15 @@ class _TrainingFormScreenState extends State<TrainingFormScreen> {
         // Jen hráči, kteří jsou pořád v týmu.
         assignedTo: _selectedPlayers.where(players.containsKey).toList(),
       );
-      if (mounted) Navigator.of(context).pop();
+      if (!mounted) return;
+      final messenger = ScaffoldMessenger.of(context);
+      Navigator.of(context).pop();
+      if (!sent) {
+        messenger.showSnackBar(const SnackBar(
+          content: Text(
+              'Trénink je uložený v telefonu, odešle se, až budeš online.'),
+        ));
+      }
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -130,7 +138,7 @@ class _TrainingFormScreenState extends State<TrainingFormScreen> {
         stream: _members,
         builder: (context, snapshot) {
           if (snapshot.hasError) {
-            return Center(child: Text('Chyba: ${snapshot.error}'));
+            return Center(child: Text(errorText(snapshot.error!)));
           }
           if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());

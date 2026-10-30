@@ -3,6 +3,9 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import '../utils/error_text.dart';
+import '../utils/firestore_write.dart';
+
 // Enumy tréninku se v databázi ukládají jako svůj název ([Enum.name],
 // např. `team`, `yes`, `run`) a zpět se převádějí přes fromName.
 
@@ -142,7 +145,7 @@ class TrainingService {
   String get _uid {
     final user = _auth.currentUser;
     if (user == null) {
-      throw Exception('Uživatel není přihlášen');
+      throw AppException('Uživatel není přihlášen');
     }
     return user.uid;
   }
@@ -265,7 +268,11 @@ class TrainingService {
 
   /// Vytvoří nový trénink, nebo upraví existující ([trainingId] != null).
   /// Smí jen trenér týmu.
-  Future<void> saveTraining({
+  ///
+  /// Nečeká se, až změnu potvrdí server: bez internetu se trénink uloží
+  /// v telefonu a odešle se sám po připojení. Vrací false, když změna
+  /// zatím čeká v telefonu (viz waitForServer).
+  Future<bool> saveTraining({
     required String teamId,
     String? trainingId,
     required TrainingKind kind,
@@ -279,17 +286,17 @@ class TrainingService {
   }) async {
     final trimmedTitle = title.trim();
     if (trimmedTitle.isEmpty) {
-      throw Exception('Zadej název tréninku');
+      throw AppException('Zadej název tréninku');
     }
     if (trimmedTitle.length > 100) {
-      throw Exception('Název může mít nejvýše 100 znaků');
+      throw AppException('Název může mít nejvýše 100 znaků');
     }
     if (endAt != null && !endAt.isAfter(startAt)) {
-      throw Exception('Konec tréninku musí být až po jeho začátku');
+      throw AppException('Konec tréninku musí být až po jeho začátku');
     }
     final isTeam = kind == TrainingKind.team;
     if (!isTeam && assignedTo.isEmpty) {
-      throw Exception('Vyber alespoň jednoho hráče');
+      throw AppException('Vyber alespoň jednoho hráče');
     }
 
     final data = <String, dynamic>{
@@ -306,28 +313,34 @@ class TrainingService {
     };
 
     if (trainingId == null) {
-      await _trainings(teamId).add({
+      return waitForServer(_trainings(teamId).doc().set({
         ...data,
         'responses': <String, String>{},
         'createdBy': _uid,
         'createdAt': FieldValue.serverTimestamp(),
-      });
-      return;
+      }));
     }
 
     // Po změně druhu tréninku (společný <-> individuální) už dosavadní
     // odpovědi nedávají smysl (BUDU/NEBUDU vs. splněno), proto se smažou.
+    // Bez internetu se trénink přečte z telefonu (je tam z kalendáře).
     final ref = _trainings(teamId).doc(trainingId);
     final current = await ref.get();
     if (current.data()?['kind'] != kind.name) {
       data['responses'] = <String, String>{};
     }
-    await ref.update(data);
+    return waitForServer(ref.update(data));
   }
 
   /// Smaže trénink. Smí jen trenér týmu.
-  Future<void> deleteTraining(String teamId, String trainingId) {
-    return _trainings(teamId).doc(trainingId).delete();
+  ///
+  /// Smazání vyžaduje internet: nejdřív se trénink přečte přímo ze
+  /// serveru – bez připojení to skončí chybou „bez internetu“ (viz
+  /// errorText) a nic se nesmaže ani nezařadí do fronty v telefonu.
+  Future<void> deleteTraining(String teamId, String trainingId) async {
+    final ref = _trainings(teamId).doc(trainingId);
+    await ref.get(const GetOptions(source: Source.server));
+    await ref.delete();
   }
 
   /// Uloží odpověď aktuálního hráče – [TrainingResponse.yes] / [TrainingResponse.no]

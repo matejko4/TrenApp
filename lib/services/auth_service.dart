@@ -1,8 +1,13 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+
+import '../utils/error_text.dart';
+import '../utils/firestore_write.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -13,10 +18,10 @@ class AuthService {
   String _checkName(String name) {
     final trimmed = name.trim().replaceAll(RegExp(r'\s+'), ' ');
     if (trimmed.isEmpty) {
-      throw Exception('Zadej své jméno');
+      throw AppException('Zadej své jméno');
     }
     if (trimmed.length > 40) {
-      throw Exception('Jméno může mít nejvýše 40 znaků');
+      throw AppException('Jméno může mít nejvýše 40 znaků');
     }
     return trimmed;
   }
@@ -24,8 +29,8 @@ class AuthService {
   /// Prázdný e-mail nebo heslo se ohlásí hned, bez dotazu na Firebase
   /// (ten by vrátil nesrozumitelnou chybu).
   void _checkFilled(String email, String password) {
-    if (email.isEmpty) throw Exception('Zadej e-mail');
-    if (password.isEmpty) throw Exception('Zadej heslo');
+    if (email.isEmpty) throw AppException('Zadej e-mail');
+    if (password.isEmpty) throw AppException('Zadej heslo');
   }
 
   /// Česká hláška pro chybu z Firebase Auth podle jejího kódu.
@@ -38,7 +43,7 @@ class AuthService {
         'weak-password' => 'Heslo je příliš slabé – musí mít alespoň 6 znaků',
         'user-disabled' => 'Tento účet je zablokovaný',
         'too-many-requests' => 'Příliš mnoho pokusů, zkus to za chvíli',
-        'network-request-failed' => 'Nejsi připojený k internetu',
+        'network-request-failed' => offlineMessage,
         'popup-blocked' =>
           'Prohlížeč zablokoval okno pro přihlášení – povol vyskakovací okna',
         _ => 'Něco se nepovedlo (${e.code})',
@@ -52,7 +57,7 @@ class AuthService {
     final trimmedName = _checkName(name);
     _checkFilled(email, password);
     if (password.length < 6) {
-      throw Exception('Heslo musí mít alespoň 6 znaků');
+      throw AppException('Heslo musí mít alespoň 6 znaků');
     }
     final UserCredential cred;
     try {
@@ -61,7 +66,7 @@ class AuthService {
         password: password,
       );
     } on FirebaseAuthException catch (e) {
-      throw Exception(_authErrorMessage(e));
+      throw AppException(_authErrorMessage(e));
     }
     // E-mail se sem nekopíruje – drží ho Firebase Authentication a profil
     // users/{uid} si může přečíst kterýkoli přihlášený uživatel.
@@ -82,7 +87,7 @@ class AuthService {
         password: password,
       );
     } on FirebaseAuthException catch (e) {
-      throw Exception(_authErrorMessage(e));
+      throw AppException(_authErrorMessage(e));
     }
   }
 
@@ -93,14 +98,14 @@ class AuthService {
       result =
           kIsWeb ? await _signInWithGoogleWeb() : await _signInWithGoogleApp();
     } on FirebaseAuthException catch (e) {
-      throw Exception(_authErrorMessage(e));
+      throw AppException(_authErrorMessage(e));
     } on PlatformException catch (e) {
       // Chyby z okna Google účtu (balíček google_sign_in) mají vlastní kódy.
       if (e.code == GoogleSignIn.kSignInCanceledError) return null;
       if (e.code == GoogleSignIn.kNetworkError) {
-        throw Exception('Nejsi připojený k internetu');
+        throw AppException(offlineMessage);
       }
-      throw Exception('Přihlášení přes Google selhalo');
+      throw AppException('Přihlášení přes Google selhalo');
     }
     if (result == null) return null;
     final cred = result;
@@ -156,9 +161,13 @@ class AuthService {
   /// Nastaví/změní jméno aktuálního uživatele. Kromě users/{uid} se jméno
   /// propíše i do rosteru všech jeho týmů (teams/{teamId}/members/{uid}),
   /// protože soupiska týmu čte jména přímo odtud.
-  Future<void> updateName(String name) async {
+  ///
+  /// Nečeká se, až změnu potvrdí server: bez internetu se jméno uloží
+  /// v telefonu a odešle se samo po připojení. Vrací false, když změna
+  /// zatím čeká v telefonu (viz waitForServer).
+  Future<bool> updateName(String name) async {
     final user = _auth.currentUser;
-    if (user == null) throw Exception('Uživatel není přihlášen');
+    if (user == null) throw AppException('Uživatel není přihlášen');
     final trimmedName = _checkName(name);
 
     final teamsSnap =
@@ -180,9 +189,20 @@ class AuthService {
         {'name': trimmedName},
       );
     }
-    await batch.commit();
-    await user.updateDisplayName(trimmedName);
+    // Jméno v účtu Firebase Auth je jen doplněk (aplikace čte jméno
+    // z users/{uid}) a bez internetu se nezmění – proto se na něj nečeká.
+    unawaited(user.updateDisplayName(trimmedName).catchError(
+        (Object e) => debugPrint('Jméno v účtu Firebase Auth se nezměnilo: $e')));
+    return waitForServer(batch.commit());
   }
+
+  /// Jméno přihlášeného uživatele z users/{uid}. Na rozdíl od jména v účtu
+  /// Firebase Auth se změní hned, i bez internetu.
+  Stream<String?> get myName => _db
+      .collection('users')
+      .doc(_auth.currentUser!.uid)
+      .snapshots()
+      .map((doc) => doc.data()?['name'] as String?);
 
   /// Zda má uživatel přihlášení e-mailem a heslem (Google účty heslo nemají).
   bool get hasPasswordLogin =>
@@ -195,10 +215,10 @@ class AuthService {
   Future<void> changePassword(String currentPassword, String newPassword) async {
     final user = _auth.currentUser;
     if (user == null || user.email == null) {
-      throw Exception('Uživatel není přihlášen');
+      throw AppException('Uživatel není přihlášen');
     }
     if (newPassword.length < 6) {
-      throw Exception('Nové heslo musí mít alespoň 6 znaků');
+      throw AppException('Nové heslo musí mít alespoň 6 znaků');
     }
     try {
       final credential = EmailAuthProvider.credential(
@@ -211,9 +231,9 @@ class AuthService {
       // Tady jde o ověření současného hesla, proto přesnější hláška než
       // obecné „Nesprávný e-mail nebo heslo“.
       if (e.code == 'wrong-password' || e.code == 'invalid-credential') {
-        throw Exception('Současné heslo není správné');
+        throw AppException('Současné heslo není správné');
       }
-      throw Exception(_authErrorMessage(e));
+      throw AppException(_authErrorMessage(e));
     }
   }
 
@@ -222,11 +242,11 @@ class AuthService {
   /// přihlášeného uživatele.
   Future<void> sendPasswordReset([String? email]) async {
     final address = (email ?? _auth.currentUser?.email ?? '').trim();
-    if (address.isEmpty) throw Exception('Zadej e-mail');
+    if (address.isEmpty) throw AppException('Zadej e-mail');
     try {
       await _auth.sendPasswordResetEmail(email: address);
     } on FirebaseAuthException catch (e) {
-      throw Exception(_authErrorMessage(e));
+      throw AppException(_authErrorMessage(e));
     }
   }
 
@@ -238,7 +258,4 @@ class AuthService {
   }
 
   User? get currentUser => _auth.currentUser;
-  // Na rozdíl od authStateChanges (používá RootGate) hlásí i změnu jména
-  // (displayName).
-  Stream<User?> get userChanges => _auth.userChanges();
 }

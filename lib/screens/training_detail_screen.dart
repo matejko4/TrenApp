@@ -69,7 +69,7 @@ class _TrainingDetailScreenState extends State<TrainingDetailScreen> {
         if (snapshot.connectionState == ConnectionState.waiting || _deleting) {
           body = const Center(child: CircularProgressIndicator());
         } else if (snapshot.hasError) {
-          body = Center(child: Text('Chyba: ${snapshot.error}'));
+          body = Center(child: Text(errorText(snapshot.error!)));
         } else if (training == null) {
           body = const Center(child: Text('Trénink byl smazán.'));
         } else {

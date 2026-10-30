@@ -46,6 +46,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
   bool _deleting = false;
   String? _ownerUid;
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _teamSub;
+  final _rosterScroll = ScrollController();
 
   late final Stream<QuerySnapshot<Map<String, dynamic>>> _members =
       _teamService.streamTeamMembers(widget.teamId);
@@ -68,6 +69,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
   @override
   void dispose() {
     _teamSub?.cancel();
+    _rosterScroll.dispose();
     super.dispose();
   }
 
@@ -212,7 +214,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
               stream: _members,
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
-                  return Center(child: Text('Chyba: ${snapshot.error}'));
+                  return Center(child: Text(errorText(snapshot.error!)));
                 }
                 if (!snapshot.hasData) {
                   return const Center(child: CircularProgressIndicator());
@@ -266,6 +268,10 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
 
   /// Soupiska rozdělená na trenéry (správce první) a hráče, obojí v pořadí,
   /// v jakém se připojili.
+  ///
+  /// Je v rámečku s pevnou maximální výškou (zhruba 5 členů) a další členy
+  /// jde rolovat uvnitř něj – i u velkého týmu tak zůstane nejbližší trénink
+  /// hned pod soupiskou.
   Widget _buildRoster(
       List<QueryDocumentSnapshot<Map<String, dynamic>>> members) {
     bool isCoach(QueryDocumentSnapshot<Map<String, dynamic>> member) =>
@@ -277,24 +283,41 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
     ];
     final players = members.where((m) => !isCoach(m)).toList();
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SectionTitle(
-          'Trenéři (${coaches.length})',
-          padding: const EdgeInsets.only(bottom: 4),
-        ),
-        for (final member in coaches) _buildMember(member),
-        SectionTitle('Hráči (${players.length})'),
-        if (players.isEmpty)
-          Text(
-            widget.isCoach
-                ? 'Zatím žádní hráči. Pozvi je pomocí kódu týmu.'
-                : 'Zatím žádní hráči.',
-            style: const TextStyle(color: Colors.black54),
+    return Card.outlined(
+      margin: EdgeInsets.zero,
+      clipBehavior: Clip.antiAlias,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxHeight: 370),
+        child: Scrollbar(
+          controller: _rosterScroll,
+          thumbVisibility: true,
+          child: ListView(
+            controller: _rosterScroll,
+            // Menší soupiska zabere jen tolik místa, kolik potřebuje.
+            shrinkWrap: true,
+            padding: const EdgeInsets.fromLTRB(8, 8, 12, 0),
+            children: [
+              SectionTitle(
+                'Trenéři (${coaches.length})',
+                padding: const EdgeInsets.only(bottom: 4),
+              ),
+              for (final member in coaches) _buildMember(member),
+              SectionTitle('Hráči (${players.length})'),
+              if (players.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Text(
+                    widget.isCoach
+                        ? 'Zatím žádní hráči. Pozvi je pomocí kódu týmu.'
+                        : 'Zatím žádní hráči.',
+                    style: const TextStyle(color: Colors.black54),
+                  ),
+                ),
+              for (final member in players) _buildMember(member),
+            ],
           ),
-        for (final member in players) _buildMember(member),
-      ],
+        ),
+      ),
     );
   }
 
@@ -338,7 +361,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
       stream: _upcoming,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
-          return Text('Chyba: ${snapshot.error}');
+          return Text(errorText(snapshot.error!));
         }
         if (!snapshot.hasData) return const SizedBox.shrink();
 

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../services/team_service.dart';
 import '../services/training_service.dart';
 import '../utils/date_format.dart';
+import '../utils/error_text.dart';
 import '../widgets/account_actions.dart';
 import '../widgets/app_bottom_bar.dart';
 import '../widgets/common.dart';
@@ -84,7 +85,7 @@ class _TeamCalendarScreenState extends State<TeamCalendarScreen> {
                     stream: members,
                     builder: (context, snapshot) {
                       if (snapshot.hasError) {
-                        return Center(child: Text('Chyba: ${snapshot.error}'));
+                        return Center(child: Text(errorText(snapshot.error!)));
                       }
                       if (!snapshot.hasData) {
                         return const Center(child: CircularProgressIndicator());
@@ -124,7 +125,7 @@ class _TeamCalendarScreenState extends State<TeamCalendarScreen> {
           return Center(
             child: Padding(
               padding: const EdgeInsets.all(16),
-              child: Text('Chyba: ${snapshot.error}'),
+              child: Text(errorText(snapshot.error!)),
             ),
           );
         }

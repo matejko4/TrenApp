@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../services/team_service.dart';
+import '../utils/error_text.dart';
 import '../widgets/account_actions.dart';
 import '../widgets/app_bottom_bar.dart';
 import '../widgets/common.dart';
@@ -28,7 +29,7 @@ class HomeScreen extends StatelessWidget {
             return const Center(child: CircularProgressIndicator());
           }
           if (snapshot.hasError) {
-            return Center(child: Text('Chyba: ${snapshot.error}'));
+            return Center(child: Text(errorText(snapshot.error!)));
           }
 
           final teams = snapshot.data?.docs ?? [];

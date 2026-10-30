@@ -1,4 +1,3 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../services/auth_service.dart';
@@ -19,13 +18,13 @@ class AccountSettingsScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Nastavení účtu'),
       ),
-      body: StreamBuilder<User?>(
-        stream: authService.userChanges,
-        initialData: authService.currentUser,
+      // Jméno se čte z users/{uid} (ne z účtu Firebase Auth), protože se
+      // tam změní hned, i bez internetu – viz AuthService.updateName.
+      body: StreamBuilder<String?>(
+        stream: authService.myName,
         builder: (context, snapshot) {
-          final user = snapshot.data;
-          final name = user?.displayName ?? '';
-          final email = user?.email ?? '';
+          final name = snapshot.data ?? '';
+          final email = authService.currentUser?.email ?? '';
           final hasPassword = authService.hasPasswordLogin;
 
           return ListView(
@@ -67,7 +66,7 @@ class AccountSettingsScreen extends StatelessWidget {
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => showDialog(
                   context: context,
-                  builder: (_) => const EditNameDialog(),
+                  builder: (_) => EditNameDialog(currentName: name),
                 ),
               ),
               const SectionTitle(
@@ -135,7 +134,9 @@ class AccountSettingsScreen extends StatelessWidget {
 /// Dialog pro změnu jména. Změna se propíše i do soupisek
 /// všech týmů uživatele (viz AuthService.updateName).
 class EditNameDialog extends StatefulWidget {
-  const EditNameDialog({super.key});
+  const EditNameDialog({super.key, required this.currentName});
+
+  final String currentName;
 
   @override
   State<EditNameDialog> createState() => _EditNameDialogState();
@@ -143,9 +144,7 @@ class EditNameDialog extends StatefulWidget {
 
 class _EditNameDialogState extends State<EditNameDialog> {
   final _authService = AuthService();
-  final _nameController = TextEditingController(
-    text: FirebaseAuth.instance.currentUser?.displayName ?? '',
-  );
+  late final _nameController = TextEditingController(text: widget.currentName);
 
   bool _loading = false;
   String _error = '';
@@ -162,8 +161,16 @@ class _EditNameDialogState extends State<EditNameDialog> {
       _error = '';
     });
     try {
-      await _authService.updateName(_nameController.text);
-      if (mounted) Navigator.of(context).pop();
+      final sent = await _authService.updateName(_nameController.text);
+      if (!mounted) return;
+      final messenger = ScaffoldMessenger.of(context);
+      Navigator.of(context).pop();
+      if (!sent) {
+        messenger.showSnackBar(const SnackBar(
+          content: Text(
+              'Jméno je uložené v telefonu, odešle se, až budeš online.'),
+        ));
+      }
     } catch (e) {
       if (mounted) {
         setState(() {

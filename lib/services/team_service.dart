@@ -3,6 +3,8 @@ import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import '../utils/error_text.dart';
+
 /// Role uživatele v rámci konkrétního týmu. V databázi se ukládá
 /// [Enum.name] (`coach` / `player`).
 enum TeamRole {
@@ -56,7 +58,7 @@ class TeamService {
   String get _uid {
     final user = _auth.currentUser;
     if (user == null) {
-      throw Exception('Uživatel není přihlášen');
+      throw AppException('Uživatel není přihlášen');
     }
     return user.uid;
   }
@@ -74,7 +76,7 @@ class TeamService {
       final existing = await _db.collection('team_codes').doc(code).get();
       if (!existing.exists) return code;
     }
-    throw Exception('Nepodařilo se vygenerovat kód týmu, zkus to znovu');
+    throw AppException('Nepodařilo se vygenerovat kód týmu, zkus to znovu');
   }
 
   /// Jméno aktuálního uživatele (users/{uid}.name), které se ukládá do
@@ -94,11 +96,11 @@ class TeamService {
   Future<String> createTeam(String name) async {
     final trimmedName = name.trim();
     if (trimmedName.isEmpty) {
-      throw Exception('Zadej název týmu');
+      throw AppException('Zadej název týmu');
     }
 
     final user = _auth.currentUser;
-    if (user == null) throw Exception('Uživatel není přihlášen');
+    if (user == null) throw AppException('Uživatel není přihlášen');
 
     final code = await _generateUniqueCode();
     final myName = await _myName(user);
@@ -147,15 +149,15 @@ class TeamService {
   Future<void> joinTeamByCode(String code) async {
     final normalized = code.trim().toUpperCase();
     if (normalized.isEmpty) {
-      throw Exception('Zadej kód týmu');
+      throw AppException('Zadej kód týmu');
     }
 
     final user = _auth.currentUser;
-    if (user == null) throw Exception('Uživatel není přihlášen');
+    if (user == null) throw AppException('Uživatel není přihlášen');
 
     final codeDoc = await _db.collection('team_codes').doc(normalized).get();
     if (!codeDoc.exists) {
-      throw Exception('Tým s tímto kódem neexistuje');
+      throw AppException('Tým s tímto kódem neexistuje');
     }
 
     final teamId = codeDoc.data()!['teamId'] as String;
@@ -165,7 +167,7 @@ class TeamService {
 
     final existingMember = await memberRef.get();
     if (existingMember.exists) {
-      throw Exception('V tomto týmu už jsi členem');
+      throw AppException('V tomto týmu už jsi členem');
     }
 
     final myName = await _myName(user);
@@ -231,7 +233,7 @@ class TeamService {
     if (role == TeamRole.player) {
       final teamDoc = await _db.collection('teams').doc(teamId).get();
       if (teamDoc.data()?['ownerUid'] == uid) {
-        throw Exception('Správce týmu nelze změnit na hráče');
+        throw AppException('Správce týmu nelze změnit na hráče');
       }
     }
 
@@ -256,7 +258,7 @@ class TeamService {
   Future<void> removeMember(String teamId, String uid) async {
     final teamDoc = await _db.collection('teams').doc(teamId).get();
     if (teamDoc.data()?['ownerUid'] == uid) {
-      throw Exception(
+      throw AppException(
           'Správce nelze z týmu odebrat. Může předat vedení jinému členovi, nebo tým zrušit.');
     }
 
@@ -279,7 +281,7 @@ class TeamService {
     final teamRef = _db.collection('teams').doc(teamId);
     final member = await teamRef.collection('members').doc(newOwnerUid).get();
     if (!member.exists) {
-      throw Exception('Vedení lze předat jen členovi týmu');
+      throw AppException('Vedení lze předat jen členovi týmu');
     }
 
     final batch = _db.batch();
@@ -300,15 +302,21 @@ class TeamService {
   ///
   /// Podkolekce (members, trainings) Firestore se smazáním dokumentu týmu
   /// sám nesmaže, proto se mažou ručně ve stejné dávce.
+  ///
+  /// Zrušení vyžaduje internet: všechno se čte přímo ze serveru – bez
+  /// připojení to skončí chybou „bez internetu“ (viz errorText) a nic se
+  /// nesmaže. Zároveň se tak maže aktuální soupiska a tréninky, ne jejich
+  /// starší kopie uložená v telefonu.
   Future<void> deleteTeam(String teamId) async {
+    const fromServer = GetOptions(source: Source.server);
     final teamRef = _db.collection('teams').doc(teamId);
-    final teamDoc = await teamRef.get();
+    final teamDoc = await teamRef.get(fromServer);
     if (!teamDoc.exists) return;
 
     final code = teamDoc.data()!['code'] as String?;
 
-    final membersSnap = await teamRef.collection('members').get();
-    final trainingsSnap = await teamRef.collection('trainings').get();
+    final membersSnap = await teamRef.collection('members').get(fromServer);
+    final trainingsSnap = await teamRef.collection('trainings').get(fromServer);
 
     final batch = _db.batch();
     for (final trainingDoc in trainingsSnap.docs) {
