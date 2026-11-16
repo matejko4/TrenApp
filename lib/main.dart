@@ -3,12 +3,15 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'screens/root_gate.dart';
+import 'services/network_status.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  // Sledování připojení pro pruh „Jste offline“ (viz OfflineBanner).
+  await NetworkStatus.start();
   runApp(const MyApp());
 }
 

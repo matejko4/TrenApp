@@ -23,6 +23,7 @@ Future<void> pumpCoachCard(WidgetTester tester, Training training) {
 
 Training makeTraining({
   required TrainingKind kind,
+  TrainingType type = TrainingType.technique,
   List<String> assignedTo = const [],
   required Map<String, TrainingResponse> responses,
 }) {
@@ -30,7 +31,7 @@ Training makeTraining({
     id: 't1',
     kind: kind,
     title: 'Trénink',
-    type: TrainingType.technique,
+    type: type,
     startAt: DateTime.now().add(const Duration(days: 1)),
     assignedTo: assignedTo,
     responses: responses,
@@ -52,6 +53,24 @@ void main() {
     expect(find.text('Společný'), findsOneWidget);
     expect(find.text('Přijde 1'), findsOneWidget);
     expect(find.text('Nepřijde 1'), findsOneWidget);
+    expect(find.text('Bez odpovědi 1'), findsOneWidget);
+  });
+
+  testWidgets('zápas má štítek „Zápas“ a souhrn odpovědí jako společný trénink',
+      (tester) async {
+    await pumpCoachCard(
+      tester,
+      makeTraining(
+        kind: TrainingKind.team,
+        type: TrainingType.match,
+        responses: {'jan': TrainingResponse.yes, 'eva': TrainingResponse.yes},
+      ),
+    );
+
+    expect(find.text('Zápas'), findsOneWidget);
+    expect(find.text('Společný'), findsNothing);
+    expect(find.byIcon(Icons.emoji_events), findsOneWidget);
+    expect(find.text('Přijde 2'), findsOneWidget);
     expect(find.text('Bez odpovědi 1'), findsOneWidget);
   });
 

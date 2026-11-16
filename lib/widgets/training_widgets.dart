@@ -14,7 +14,21 @@ IconData trainingTypeIcon(TrainingType type) => switch (type) {
       TrainingType.technique => Icons.sports_soccer,
       TrainingType.recovery => Icons.self_improvement,
       TrainingType.other => Icons.event,
+      TrainingType.match => Icons.emoji_events,
     };
+
+/// Barva akce: společný trénink indigo, individuální zelenomodrá, zápas
+/// oranžová. Používá ji ikona, štítek i tečka v týdenním kalendáři.
+Color trainingColor(Training training) {
+  if (training.isMatch) return Colors.orange.shade800;
+  return training.isTeam ? Colors.indigo : Colors.teal;
+}
+
+/// Štítek druhu akce – „Společný“, „Individuální“, nebo „Zápas“.
+String trainingKindLabel(Training training) {
+  if (training.isMatch) return 'Zápas';
+  return training.isTeam ? 'Společný' : 'Individuální';
+}
 
 /// Ikona s barevným popiskem – stav tréninku nebo počet odpovědí.
 class TrainingStatusLabel extends StatelessWidget {
@@ -45,15 +59,15 @@ class TrainingStatusLabel extends StatelessWidget {
   }
 }
 
-/// Štítek „Společný“ / „Individuální“.
+/// Štítek „Společný“ / „Individuální“ / „Zápas“.
 class TrainingKindChip extends StatelessWidget {
-  const TrainingKindChip({super.key, required this.isTeam});
+  const TrainingKindChip({super.key, required this.training});
 
-  final bool isTeam;
+  final Training training;
 
   @override
   Widget build(BuildContext context) {
-    final color = isTeam ? Colors.indigo : Colors.teal;
+    final color = trainingColor(training);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
@@ -61,7 +75,7 @@ class TrainingKindChip extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
       ),
       child: Text(
-        isTeam ? 'Společný' : 'Individuální',
+        trainingKindLabel(training),
         style: TextStyle(
           color: color,
           fontSize: 12,
@@ -128,8 +142,7 @@ class TrainingCard extends StatelessWidget {
               Row(
                 children: [
                   CircleAvatar(
-                    backgroundColor:
-                        training.isTeam ? Colors.indigo : Colors.teal,
+                    backgroundColor: trainingColor(training),
                     child: Icon(
                       trainingTypeIcon(training.type),
                       color: Colors.white,
@@ -157,7 +170,7 @@ class TrainingCard extends StatelessWidget {
                       ],
                     ),
                   ),
-                  TrainingKindChip(isTeam: training.isTeam),
+                  TrainingKindChip(training: training),
                 ],
               ),
               const SizedBox(height: 12),

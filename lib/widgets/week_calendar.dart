@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 
 import '../services/training_service.dart';
 import '../utils/date_format.dart';
+import 'training_widgets.dart';
 
 /// Malý týdenní kalendář – dny pod sebou (Po–Ne) a u každého dne tečka
-/// za každý trénink (modrá = společný, zelená = individuální). Šipkami
-/// se přepíná týden, klepnutí na den volá [onDayTap].
+/// za každý trénink (modrá = společný, zelená = individuální, oranžová =
+/// zápas, viz trainingColor). Šipkami se přepíná týden, klepnutí na den
+/// volá [onDayTap].
 class WeekCalendar extends StatelessWidget {
   const WeekCalendar({
     super.key,
@@ -109,7 +111,7 @@ class WeekCalendar extends StatelessWidget {
                 runSpacing: 3,
                 children: [
                   for (final training in dayTrainings)
-                    TrainingDot(isTeam: training.isTeam),
+                    TrainingDot(color: trainingColor(training)),
                 ],
               ),
             ),
@@ -122,9 +124,9 @@ class WeekCalendar extends StatelessWidget {
 
 /// Tečka za jeden trénink v týdenním kalendáři.
 class TrainingDot extends StatelessWidget {
-  const TrainingDot({super.key, required this.isTeam});
+  const TrainingDot({super.key, required this.color});
 
-  final bool isTeam;
+  final Color color;
 
   @override
   Widget build(BuildContext context) {
@@ -132,7 +134,7 @@ class TrainingDot extends StatelessWidget {
       width: 8,
       height: 8,
       decoration: BoxDecoration(
-        color: isTeam ? Colors.indigo : Colors.teal,
+        color: color,
         shape: BoxShape.circle,
       ),
     );

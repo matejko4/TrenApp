@@ -35,13 +35,16 @@ enum TrainingResponse {
   static TrainingResponse? fromName(String? name) => values.asNameMap()[name];
 }
 
-/// Typ tréninku.
+/// Typ tréninku. [match] je zápas – ukládá se jako společná akce celého
+/// týmu (kind team), takže BUDU / NEBUDU i přehled účasti fungují stejně
+/// jako u společného tréninku.
 enum TrainingType {
   run('Běh'),
   strength('Silový trénink'),
   technique('Technický trénink'),
   recovery('Regenerace'),
-  other('Ostatní');
+  other('Ostatní'),
+  match('Zápas');
 
   const TrainingType(this.label);
 
@@ -111,6 +114,9 @@ class Training {
   final Map<String, TrainingResponse> responses;
 
   bool get isTeam => kind == TrainingKind.team;
+
+  /// Zápas (společná akce celého týmu, viz [TrainingType.match]).
+  bool get isMatch => type == TrainingType.match;
 
   /// Na společný trénink jde odpovídat BUDU / NEBUDU jen do jeho začátku.
   bool get canRespond => DateTime.now().isBefore(startAt);
@@ -295,6 +301,9 @@ class TrainingService {
       throw AppException('Konec tréninku musí být až po jeho začátku');
     }
     final isTeam = kind == TrainingKind.team;
+    if (type == TrainingType.match && !isTeam) {
+      throw AppException('Zápas může být jen pro celý tým');
+    }
     if (!isTeam && assignedTo.isEmpty) {
       throw AppException('Vyber alespoň jednoho hráče');
     }

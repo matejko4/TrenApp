@@ -354,8 +354,9 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
     );
   }
 
-  /// Nejbližší trénink, který ještě neskončil – ze stejných tréninků, jaké
-  /// uživatel vidí v kalendáři (hráč jen společné a svoje individuální).
+  /// Nejbližší akce (trénink nebo zápas), která ještě neskončila – ze
+  /// stejných akcí, jaké uživatel vidí v kalendáři (hráč jen společné
+  /// tréninky, zápasy a svoje individuální tréninky).
   Widget _buildNextTraining(Map<String, String> players) {
     return StreamBuilder<List<Training>>(
       stream: _upcoming,
@@ -375,11 +376,11 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             SectionTitle(next == null
-                ? 'Nejbližší trénink'
-                : 'Nejbližší trénink · ${formatDayHeader(next.startAt)}'),
+                ? 'Nejbližší akce'
+                : 'Nejbližší akce · ${formatDayHeader(next.startAt)}'),
             if (next == null)
               const Text(
-                'Žádný naplánovaný trénink.',
+                'Žádná naplánovaná akce.',
                 style: TextStyle(color: Colors.black54),
               )
             else

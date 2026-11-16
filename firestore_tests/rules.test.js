@@ -379,6 +379,14 @@ describe('Tréninky – zadávání', () => {
     await assertFails(setDoc(newTraining('hrac'), training({ createdBy: 'hrac' })));
   });
 
+  it('trenér zadá zápas pro celý tým', async () => {
+    await assertSucceeds(setDoc(newTraining('trener'), training({ title: 'SFC – Sparta B', type: 'match' })));
+  });
+
+  it('zápas jen pro vybrané hráče neprojde', async () => {
+    await assertFails(setDoc(newTraining('trener'), training({ kind: 'individual', type: 'match', assignedTo: ['hrac'] })));
+  });
+
   it('individuální trénink bez hráčů neprojde', async () => {
     await assertFails(setDoc(newTraining('trener'), training({ kind: 'individual', assignedTo: [] })));
   });

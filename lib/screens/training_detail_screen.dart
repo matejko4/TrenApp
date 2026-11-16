@@ -39,8 +39,9 @@ class _TrainingDetailScreenState extends State<TrainingDetailScreen> {
   Future<void> _delete(Training training) async {
     final confirmed = await confirmDialog(
       context,
-      title: 'Smazat trénink',
-      message: 'Opravdu chceš smazat trénink "${training.title}"?',
+      title: training.isMatch ? 'Smazat zápas' : 'Smazat trénink',
+      message: 'Opravdu chceš smazat ${training.isMatch ? 'zápas' : 'trénink'} '
+          '"${training.title}"?',
       confirmLabel: 'Smazat',
     );
     if (!confirmed) return;
@@ -119,7 +120,7 @@ class _TrainingDetailScreenState extends State<TrainingDetailScreen> {
         Row(
           children: [
             CircleAvatar(
-              backgroundColor: training.isTeam ? Colors.indigo : Colors.teal,
+              backgroundColor: trainingColor(training),
               child: Icon(trainingTypeIcon(training.type), color: Colors.white),
             ),
             const SizedBox(width: 12),
@@ -132,7 +133,7 @@ class _TrainingDetailScreenState extends State<TrainingDetailScreen> {
                 ),
               ),
             ),
-            TrainingKindChip(isTeam: training.isTeam),
+            TrainingKindChip(training: training),
           ],
         ),
         const SizedBox(height: 8),

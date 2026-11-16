@@ -35,6 +35,22 @@ void main() {
     });
   });
 
+  test('zápas je společná akce – hráči na něj odpovídají BUDU / NEBUDU', () {
+    final match = Training(
+      id: 'z1',
+      kind: TrainingKind.team,
+      title: 'SFC – Sparta B',
+      type: TrainingType.fromName('match'),
+      startAt: now.add(const Duration(days: 1)),
+      assignedTo: const [],
+      responses: const {},
+    );
+    expect(match.isMatch, isTrue);
+    expect(match.isTeam, isTrue);
+    expect(match.canRespond, isTrue);
+    expect(makeTraining(startAt: now).isMatch, isFalse);
+  });
+
   group('Společný trénink – BUDU / NEBUDU', () {
     test('na trénink, který ještě nezačal, jde odpovídat', () {
       final training = makeTraining(

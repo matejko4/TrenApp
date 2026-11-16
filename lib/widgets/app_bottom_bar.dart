@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../screens/account_settings_screen.dart';
 import '../screens/notifications_screen.dart';
+import 'offline_banner.dart';
 
 /// Položky spodní lišty – pořadí odpovídá pořadí tlačítek v liště.
 enum AppTab { home, notifications, account }
@@ -36,25 +37,32 @@ class AppBottomBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return NavigationBar(
-      selectedIndex: current.index,
-      onDestinationSelected: (index) =>
-          _onSelected(context, AppTab.values[index]),
-      destinations: const [
-        NavigationDestination(
-          icon: Icon(Icons.home_outlined),
-          selectedIcon: Icon(Icons.home),
-          label: 'Domů',
-        ),
-        NavigationDestination(
-          icon: Icon(Icons.notifications_outlined),
-          selectedIcon: Icon(Icons.notifications),
-          label: 'Oznámení',
-        ),
-        NavigationDestination(
-          icon: Icon(Icons.person_outline),
-          selectedIcon: Icon(Icons.person),
-          label: 'Účet',
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Bez připojení nad lištou vyjede pruh „Jste offline“.
+        const OfflineBanner(),
+        NavigationBar(
+          selectedIndex: current.index,
+          onDestinationSelected: (index) =>
+              _onSelected(context, AppTab.values[index]),
+          destinations: const [
+            NavigationDestination(
+              icon: Icon(Icons.home_outlined),
+              selectedIcon: Icon(Icons.home),
+              label: 'Domů',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.notifications_outlined),
+              selectedIcon: Icon(Icons.notifications),
+              label: 'Oznámení',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.person_outline),
+              selectedIcon: Icon(Icons.person),
+              label: 'Účet',
+            ),
+          ],
         ),
       ],
     );

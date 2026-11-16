@@ -129,7 +129,9 @@ service cloud.firestore {
         function isValidTraining(data) {
           return data.kind in ['team', 'individual'] &&
             data.title is string && data.title.size() > 0 && data.title.size() <= 100 &&
-            data.type in ['run', 'strength', 'technique', 'recovery', 'other'] &&
+            data.type in ['run', 'strength', 'technique', 'recovery', 'other', 'match'] &&
+            // Zápas je vždy společná akce celého týmu.
+            (data.type != 'match' || data.kind == 'team') &&
             data.startAt is timestamp &&
             (data.get('endAt', null) == null || data.endAt is timestamp) &&
             data.assignedTo is list &&

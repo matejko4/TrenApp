@@ -11,7 +11,8 @@ import '../widgets/training_widgets.dart';
 /// ([training] != null). Používá jen trenér.
 ///
 /// Individuální trénink se zadává vybraným hráčům – buď všem najednou
-/// („Všichni hráči“), nebo jen některým.
+/// („Všichni hráči“), nebo jen některým. Zápas se uloží jako společná akce
+/// celého týmu s typem [TrainingType.match].
 class TrainingFormScreen extends StatefulWidget {
   const TrainingFormScreen({super.key, required this.teamId, this.training});
 
@@ -34,8 +35,16 @@ class _TrainingFormScreenState extends State<TrainingFormScreen> {
   late final _descriptionController =
       TextEditingController(text: widget.training?.description);
 
-  late TrainingKind _kind = widget.training?.kind ?? TrainingKind.team;
-  late TrainingType _type = widget.training?.type ?? TrainingType.technique;
+  late _EventKind _event = switch (widget.training) {
+    null => _EventKind.team,
+    final t when t.isMatch => _EventKind.match,
+    final t => t.isTeam ? _EventKind.team : _EventKind.individual,
+  };
+  // Typ tréninku (u zápasu se nevybírá – při přepnutí zpět na trénink se
+  // předvybere technický).
+  late TrainingType _type = widget.training == null || widget.training!.isMatch
+      ? TrainingType.technique
+      : widget.training!.type;
   late DateTime _date = widget.training?.startAt ?? DateTime.now();
   late TimeOfDay _start = widget.training == null
       ? const TimeOfDay(hour: 17, minute: 0)
@@ -48,7 +57,9 @@ class _TrainingFormScreenState extends State<TrainingFormScreen> {
   bool _loading = false;
   String _error = '';
 
-  bool get _isTeam => _kind == TrainingKind.team;
+  // Zápas je stejně jako společný trénink pro celý tým.
+  bool get _isTeam => _event != _EventKind.individual;
+  bool get _isMatch => _event == _EventKind.match;
 
   @override
   void dispose() {
@@ -97,9 +108,9 @@ class _TrainingFormScreenState extends State<TrainingFormScreen> {
       final sent = await _trainingService.saveTraining(
         teamId: widget.teamId,
         trainingId: widget.training?.id,
-        kind: _kind,
+        kind: _isTeam ? TrainingKind.team : TrainingKind.individual,
         title: _titleController.text,
-        type: _type,
+        type: _isMatch ? TrainingType.match : _type,
         startAt: _at(_start),
         endAt: _end == null ? null : _at(_end!),
         place: _placeController.text,
@@ -111,9 +122,9 @@ class _TrainingFormScreenState extends State<TrainingFormScreen> {
       final messenger = ScaffoldMessenger.of(context);
       Navigator.of(context).pop();
       if (!sent) {
-        messenger.showSnackBar(const SnackBar(
-          content: Text(
-              'Trénink je uložený v telefonu, odešle se, až budeš online.'),
+        messenger.showSnackBar(SnackBar(
+          content: Text('${_isMatch ? 'Zápas' : 'Trénink'} je uložený '
+              'v telefonu, odešle se, až budeš online.'),
         ));
       }
     } catch (e) {
@@ -129,10 +140,11 @@ class _TrainingFormScreenState extends State<TrainingFormScreen> {
   @override
   Widget build(BuildContext context) {
     final isEdit = widget.training != null;
+    final noun = _isMatch ? 'zápas' : 'trénink';
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(isEdit ? 'Upravit trénink' : 'Nový trénink'),
+        title: Text(isEdit ? 'Upravit $noun' : 'Nový $noun'),
       ),
       body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         stream: _members,
@@ -148,28 +160,37 @@ class _TrainingFormScreenState extends State<TrainingFormScreen> {
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              SegmentedButton<TrainingKind>(
+              // Bez ikon – tři segmenty s ikonami se na úzký telefon nevejdou.
+              SegmentedButton<_EventKind>(
+                showSelectedIcon: false,
                 segments: const [
                   ButtonSegment(
-                    value: TrainingKind.team,
+                    value: _EventKind.team,
                     label: Text('Společný'),
-                    icon: Icon(Icons.groups),
                   ),
                   ButtonSegment(
-                    value: TrainingKind.individual,
+                    value: _EventKind.individual,
                     label: Text('Individuální'),
-                    icon: Icon(Icons.person),
+                  ),
+                  ButtonSegment(
+                    value: _EventKind.match,
+                    label: Text('Zápas'),
                   ),
                 ],
-                selected: {_kind},
+                selected: {_event},
                 onSelectionChanged: (selection) =>
-                    setState(() => _kind = selection.first),
+                    setState(() => _event = selection.first),
               ),
               const SizedBox(height: 8),
               Text(
-                _isTeam
-                    ? 'Pro celý tým – hráči odpoví BUDU / NEBUDU.'
-                    : 'Pro vybrané hráče – sleduje se, jestli trénink splnili.',
+                switch (_event) {
+                  _EventKind.team =>
+                    'Pro celý tým – hráči odpoví BUDU / NEBUDU.',
+                  _EventKind.individual =>
+                    'Pro vybrané hráče – sleduje se, jestli trénink splnili.',
+                  _EventKind.match =>
+                    'Zápas celého týmu – hráči odpoví BUDU / NEBUDU.',
+                },
                 textAlign: TextAlign.center,
                 style: const TextStyle(color: Colors.black54),
               ),
@@ -177,30 +198,35 @@ class _TrainingFormScreenState extends State<TrainingFormScreen> {
               TextField(
                 controller: _titleController,
                 textCapitalization: TextCapitalization.sentences,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'Název',
-                  hintText: 'např. Trénink na hřišti',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.title),
+                  hintText: _isMatch
+                      ? 'např. SFC – Sparta B'
+                      : 'např. Trénink na hřišti',
+                  border: const OutlineInputBorder(),
+                  prefixIcon: const Icon(Icons.title),
                 ),
               ),
-              const SizedBox(height: 16),
-              Text('Typ tréninku',
-                  style: Theme.of(context).textTheme.titleSmall),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  for (final type in TrainingType.values)
-                    ChoiceChip(
-                      avatar: Icon(trainingTypeIcon(type), size: 18),
-                      label: Text(type.label),
-                      selected: _type == type,
-                      onSelected: (_) => setState(() => _type = type),
-                    ),
-                ],
-              ),
+              if (!_isMatch) ...[
+                const SizedBox(height: 16),
+                Text('Typ tréninku',
+                    style: Theme.of(context).textTheme.titleSmall),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final type in TrainingType.values)
+                      if (type != TrainingType.match)
+                        ChoiceChip(
+                          avatar: Icon(trainingTypeIcon(type), size: 18),
+                          label: Text(type.label),
+                          selected: _type == type,
+                          onSelected: (_) => setState(() => _type = type),
+                        ),
+                  ],
+                ),
+              ],
               const SizedBox(height: 16),
               _PickerField(
                 label: 'Datum',
@@ -279,7 +305,7 @@ class _TrainingFormScreenState extends State<TrainingFormScreen> {
                         backgroundColor: Colors.indigo,
                         foregroundColor: Colors.white,
                       ),
-                      child: Text(isEdit ? 'Uložit změny' : 'Přidat trénink'),
+                      child: Text(isEdit ? 'Uložit změny' : 'Přidat $noun'),
                     ),
             ],
           );
@@ -338,6 +364,10 @@ class _TrainingFormScreenState extends State<TrainingFormScreen> {
     );
   }
 }
+
+/// Volba nahoře ve formuláři. Zápas se ukládá jako společná akce
+/// (TrainingKind.team) s typem TrainingType.match.
+enum _EventKind { team, individual, match }
 
 /// Pole formuláře, které místo psaní otevře výběr (data / času).
 class _PickerField extends StatelessWidget {

@@ -101,7 +101,7 @@ class _TeamCalendarScreenState extends State<TeamCalendarScreen> {
               backgroundColor: Colors.indigo,
               foregroundColor: Colors.white,
               icon: const Icon(Icons.add),
-              label: const Text('Trénink'),
+              label: const Text('Přidat'),
               onPressed: () => Navigator.push(
                 context,
                 MaterialPageRoute(

@@ -46,8 +46,9 @@ Trenér bude mít rozšířená oprávnění v rámci svého týmu:
 - odebírat hráče z týmu,
 - zadávat společné tréninky pro celý tým (den, čas, místo, popis),
 - zadávat individuální tréninky pro vybrané hráče (nebo všechny najednou),
-- upravovat a rušit zadané tréninky,
-- vidět, kdo na společný trénink přijde a kdo ne,
+- zadávat zápasy celého týmu,
+- upravovat a rušit zadané tréninky a zápasy,
+- vidět, kdo na společný trénink nebo zápas přijde a kdo ne,
 - sledovat plnění individuálních tréninků,
 - komunikovat s hráči v chatu týmu.
 
@@ -82,6 +83,8 @@ Tréninky zadává trenér. Každý trénink je naplánovaný na konkrétní den
 
 - **Společný trénink** – platí pro celý tým (např. týmový trénink na hřišti).
 - **Individuální trénink** – zadaný vybraným hráčům (např. běh, posilování). Trenér při zadávání zaškrtne buď všechny hráče, nebo jen ty, pro které má trénink platit. Kalendář se tak může pro každého hráče lišit.
+
+Stejným formulářem zadává trenér i **zápas** (třetí volba vedle Společný / Individuální). Zápas funguje stejně jako společný trénink – platí pro celý tým a hráči odpovídají BUDU / NEBUDU –, jen se u něj nevybírá typ tréninku. V kalendáři má vlastní oranžový štítek **Zápas** a ikonu poháru, aby byl na první pohled odlišený od tréninků.
 
 Každý trénink obsahuje:
 
@@ -283,7 +286,7 @@ Obsahuje:
 
 - druh (`team` – společný / `individual` – individuální)
 - název
-- typ tréninku (`run`, `strength`, `technique`, `recovery`, `other`)
+- typ tréninku (`run`, `strength`, `technique`, `recovery`, `other`), u zápasu `match` – zápas je vždy druhu `team`, což hlídají i bezpečnostní pravidla
 - datum a čas začátku / konce
 - místo (pouze u společného tréninku)
 - popis
@@ -336,7 +339,7 @@ Hlavní obrazovka může dále zobrazovat například:
 
 - seznam týmů uživatele a jeho roli v nich,
 - kalendář tréninků,
-- nejbližší trénink,
+- nejbližší akce (trénink nebo zápas),
 - společné tréninky, na které hráč ještě neodpověděl BUDU / NEBUDU,
 - nepřečtené zprávy.
 
@@ -484,7 +487,7 @@ Testovat se budou například:
 - změna role člena,
 - odebrání člena a zrušení týmu,
 - oprávnění jednotlivých rolí (Firestore Security Rules),
-- zadání společného a individuálního tréninku,
+- zadání společného a individuálního tréninku a zápasu,
 - zobrazení tréninků v kalendáři,
 - odpověď BUDU / NEBUDU a přehled účasti u trenéra,
 - změna stavu individuálního tréninku (naplánovaný / splněný / nesplněný),
@@ -495,7 +498,7 @@ Testovat se budou například:
 
 Projekt má dvě sady automatických testů.
 
-**Testy bezpečnostních pravidel** (`firestore_tests/rules.test.js`, 64 testů) ověřují `firestore.rules` proti lokálnímu Firebase Emulatoru – skutečná databáze se nepoužívá. Každý test provede jednu operaci jako konkrétní uživatel (správce, trenér, hráč, nečlen týmu, nepřihlášený) a ověří, že ji pravidla povolí, nebo zamítnou. Pokrývají například:
+**Testy bezpečnostních pravidel** (`firestore_tests/rules.test.js`, 66 testů) ověřují `firestore.rules` proti lokálnímu Firebase Emulatoru – skutečná databáze se nepoužívá. Každý test provede jednu operaci jako konkrétní uživatel (správce, trenér, hráč, nečlen týmu, nepřihlášený) a ověří, že ji pravidla povolí, nebo zamítnou. Pokrývají například:
 
 - hráč si nemůže sám změnit roli na trenéra ani se připojit rovnou jako trenér,
 - bez správného kódu se do týmu nikdo nepřipojí – ani odebraný hráč, který ID týmu zná,
@@ -506,7 +509,7 @@ Projekt má dvě sady automatických testů.
 - název ani kód týmu nejde po založení přepsat,
 - nečlen nevidí tým, soupisku ani tréninky; pozvánkové kódy nejde hromadně vypsat,
 - tým se zakládá v jedné dávce (tým, kód, členství správce) a kód nejde vytvořit pro cizí tým,
-- hráč vidí jen společné tréninky a individuální tréninky zadané jemu,
+- hráč vidí jen společné tréninky a individuální tréninky zadané jemu; zápas jde zadat jen pro celý tým,
 - hráč smí změnit jen svou odpověď (BUDU / NEBUDU u společného, splněno u individuálního tréninku),
 - založení týmu, připojení kódem, změna role, odebrání člena i zrušení týmu projdou ve stejné podobě, v jaké je zapisuje aplikace.
 
