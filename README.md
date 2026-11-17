@@ -130,6 +130,24 @@ Individuální trénink má jeden ze stavů:
 
 Individuální trénink jde splnit do konce dne, na který je zadaný. Hráč ho označí jako splněný ručně, u tréninku typu **Běh** je navíc tlačítko **Začít běh**, které otevře obrazovku pro záznam běhu pomocí GPS (podobně jako aplikace Adidas Running). Trenér tak má přehled o tom, jak jednotliví hráči plní zadané tréninky.
 
+### Záznam běhu (GPS)
+
+```
+[Start] → BĚŽÍ: čas, vzdálenost, tempo   [Pauza] [Ukončit]
+          PAUZA: hodnoty stojí           [Pokračovat] [Ukončit]
+          DOKONČENO: souhrn              [Zahodit] [Uložit běh]
+```
+
+- Aplikace měří **aktivní čas** (bez pauz), **vzdálenost** a průměrné **tempo** (např. „5:27 /km“). Body s přesností horší než 25 m zahazuje, protože GPS občas „skáče“.
+- Běh se zaznamenává i se **zhasnutým displejem**: na Androidu běží služba na popředí s notifikací „Záznam běhu“.
+- Po **pauze** začíná nový úsek a vzdálenost přes pauzu se nepočítá.
+- Funguje i **bez internetu**: GPS signál internet nepotřebuje. Uložený běh se zapíše do telefonu (offline cache Firestore) a sám se odešle, až bude připojení. Trénink se hned přepne na „Splněný“.
+- Rozběhnutý běh je do uložení jen v paměti. Když aplikace spadne, běh se ztratí.
+- **Trenér** v detailu tréninku klepne na hráče a uvidí **mapu trasy** (OpenStreetMap) a údaje o běhu.
+- **Hráč** vidí svůj běh přímo v detailu tréninku.
+- **Zrušit splnění** smaže i záznam běhu.
+- Ruční „Splněno“ zůstává, např. pro běh bez telefonu.
+
 ## 6. Technologie
 
 Projekt je vytvořen pomocí těchto technologií:
@@ -146,10 +164,10 @@ Projekt je vytvořen pomocí těchto technologií:
 - Cloud Firestore
 - Firestore Security Rules
 
-### Plánované
+### GPS a mapy
 
-- GPS / geolokace zařízení
-- mapové podklady pro zobrazení trasy
+- geolocator – poloha zařízení a služba na popředí pro záznam se zhasnutým displejem
+- flutter_map + latlong2 – mapa trasy běhu s podkladem OpenStreetMap (bez API klíče)
 
 ### Další technologie
 
@@ -185,22 +203,27 @@ TrenApp/
 │   │   ├── team_calendar_screen.dart – kalendář tréninků týmu
 │   │   ├── training_detail_screen.dart – detail tréninku a přehled odpovědí
 │   │   ├── training_form_screen.dart – zadání / úprava tréninku (trenér)
-│   │   ├── run_screen.dart          – záznam běhu (připravuje se)
+│   │   ├── run_screen.dart          – záznam běhu přes GPS
+│   │   ├── run_detail_screen.dart   – mapa trasy a údaje o běhu
 │   │   ├── notifications_screen.dart – oznámení (připravuje se)
 │   │   └── account_settings_screen.dart – nastavení účtu (jméno, heslo)
 │   │
 │   ├── services/
 │   │   ├── auth_service.dart        – přihlášení, registrace, správa účtu
 │   │   ├── team_service.dart        – práce s týmy a členy
-│   │   └── training_service.dart    – tréninky a odpovědi hráčů
+│   │   ├── training_service.dart    – tréninky a odpovědi hráčů
+│   │   ├── run_service.dart         – běh: oprávnění k poloze, GPS, uložení
+│   │   └── run_tracker.dart         – výpočet času, vzdálenosti a trasy běhu
 │   │
 │   ├── utils/
-│   │   └── date_format.dart         – české formátování data a času
+│   │   ├── date_format.dart         – české formátování data a času
+│   │   └── run_format.dart          – formátování času, vzdálenosti a tempa běhu
 │   │
 │   └── widgets/
 │       ├── account_actions.dart     – tlačítko odhlášení v horní liště
 │       ├── app_bottom_bar.dart      – spodní navigační lišta (Domů, Oznámení, Účet)
 │       ├── training_widgets.dart    – karta tréninku, BUDU / NEBUDU, stavy
+│       ├── run_widgets.dart         – mapa trasy a údaje o běhu
 │       └── coming_soon.dart         – zástupný obsah „Připravujeme“
 │
 ├── test/                        – testy aplikace (flutter test)
@@ -299,9 +322,23 @@ Odpovědi jsou přímo v dokumentu tréninku, aby trenér viděl přehled účas
 
 Hráč smí číst jen společné tréninky a individuální tréninky zadané jemu. Aplikace proto pro hráče posílá dva dotazy (podle druhu tréninku a podle seznamu hráčů), které potřebují složené indexy definované v `firestore.indexes.json`.
 
+### teams/{teamId}/trainings/{trainingId}/runs/{uid}
+
+GPS záznam běhu hráče. ID dokumentu je uid hráče, takže na jeden trénink má hráč nejvýš jeden běh – nový přepíše starý.
+
+Obsahuje:
+
+- začátek a konec běhu (`startedAt`, `endedAt`)
+- aktivní čas bez pauz v sekundách (`durationSeconds`)
+- vzdálenost v metrech (`distanceMeters`)
+- body trasy (`points`) – seznam `{lat, lng, t, s}`, kde `t` jsou sekundy aktivního času od startu a `s` číslo úseku (0, 1, 2… po každé pauze)
+
+Firestore nepodporuje pole polí, proto jsou úseky trasy jeden plochý seznam bodů s číslem úseku, ne seznam seznamů. Hodina běhu je zhruba 2 000 bodů (asi 100 KB), limit dokumentu je 1 MB. Běh se ukládá v jedné dávce spolu s odpovědí `done` v tréninku. Při smazání tréninku nebo týmu aplikace běhy maže sama, protože Firestore podkolekce automaticky nemaže.
+
+Běh vidí jen hráč sám a trenéři týmu. Uložit ho smí jen hráč, kterému je trénink zadaný. Trenér v seznamu hráčů běhy předem nenačítá (každý nese celou trasu), načte se až ten, na který klepne.
+
 ### Plánované kolekce
 
-- **activities** – záznamy tréninků z GPS (délka, vzdálenost, tempo, trasa),
 - **chats / messages** – zprávy v chatu týmu.
 
 ## 9. Uživatelské role
@@ -319,7 +356,9 @@ Aplikace využívá systém oprávnění vázaný na konkrétní tým.
 |---|:---:|:---:|:---:|
 | vidět soupisku a kalendář | ✓ | ✓ | ✓ |
 | odpovídat BUDU / NEBUDU, plnit individuální tréninky | – | – | ✓ |
+| zaznamenat běh přes GPS a vidět svůj běh | – | – | ✓ |
 | zadávat, upravovat a rušit tréninky, vidět účast | ✓ | ✓ | – |
+| vidět běhy hráčů (mapa trasy, čas, tempo) | ✓ | ✓ | – |
 | sdílet pozvánkový kód, odebírat hráče | ✓ | ✓ | – |
 | jmenovat trenéry, měnit je na hráče a odebírat | ✓ | – | – |
 | předat vedení týmu, zrušit tým | ✓ | – | – |
@@ -498,7 +537,7 @@ Testovat se budou například:
 
 Projekt má dvě sady automatických testů.
 
-**Testy bezpečnostních pravidel** (`firestore_tests/rules.test.js`, 66 testů) ověřují `firestore.rules` proti lokálnímu Firebase Emulatoru – skutečná databáze se nepoužívá. Každý test provede jednu operaci jako konkrétní uživatel (správce, trenér, hráč, nečlen týmu, nepřihlášený) a ověří, že ji pravidla povolí, nebo zamítnou. Pokrývají například:
+**Testy bezpečnostních pravidel** (`firestore_tests/rules.test.js`, 77 testů) ověřují `firestore.rules` proti lokálnímu Firebase Emulatoru – skutečná databáze se nepoužívá. Každý test provede jednu operaci jako konkrétní uživatel (správce, trenér, hráč, nečlen týmu, nepřihlášený) a ověří, že ji pravidla povolí, nebo zamítnou. Pokrývají například:
 
 - hráč si nemůže sám změnit roli na trenéra ani se připojit rovnou jako trenér,
 - bez správného kódu se do týmu nikdo nepřipojí – ani odebraný hráč, který ID týmu zná,
@@ -511,6 +550,7 @@ Projekt má dvě sady automatických testů.
 - tým se zakládá v jedné dávce (tým, kód, členství správce) a kód nejde vytvořit pro cizí tým,
 - hráč vidí jen společné tréninky a individuální tréninky zadané jemu; zápas jde zadat jen pro celý tým,
 - hráč smí změnit jen svou odpověď (BUDU / NEBUDU u společného, splněno u individuálního tréninku),
+- běh uloží jen hráč, kterému je trénink zadaný, s platnými údaji (celá čísla, časy, seznam bodů); vidí ho jen on a trenéři; „Zrušit splnění“, smazání tréninku i zrušení týmu smažou i běhy,
 - založení týmu, připojení kódem, změna role, odebrání člena i zrušení týmu projdou ve stejné podobě, v jaké je zapisuje aplikace.
 
 Spuštění (potřebuje Node.js, Javu 21+ a Firebase CLI; první spuštění stáhne emulátor):
@@ -521,7 +561,7 @@ npm install
 npm test
 ```
 
-**Testy aplikace** (`test/`) ověřují logiku bez připojení k Firebase: formátování data a času, stavy tréninku (naplánovaný / splněný / nesplněný, do kdy jde odpovídat) a souhrn odpovědí, který vidí trenér v kalendáři.
+**Testy aplikace** (`test/`) ověřují logiku bez připojení k Firebase: formátování data a času, stavy tréninku (naplánovaný / splněný / nesplněný, do kdy jde odpovídat) a souhrn odpovědí, který vidí trenér v kalendáři, a záznam běhu – výpočet aktivního času bez pauz, vzdálenosti po úsecích, zahazování nepřesných bodů GPS a formátování času, vzdálenosti a tempa.
 
 ```
 flutter test

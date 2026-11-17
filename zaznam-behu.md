@@ -3,6 +3,12 @@
 Tento soubor je zadání pro Claude Code. Popisuje, co uživatel chce, co už je
 hotové a jak to má fungovat. Vznikl po domluvě s uživatelem 16. 10. 2026.
 
+> **Stav (16. 11. 2026): hotovo.** Záznam běhu, mapa i úklid jsou
+> naprogramované podle tohoto zadání. Hráč vidí mapu svého běhu taky a
+> „Zrušit splnění“ maže i záznam běhu (s potvrzením). Uložení čeká přes
+> `waitForServer` (3 s) jako ukládání tréninků, viz `RunService.saveRun`.
+> Popis hotové funkce je v README (kapitola 4 a datový model).
+
 ## Kdo je uživatel a jak s ním pracovat
 
 - Píše česky a TrenApp (Flutter + Firebase) je jeho **první aplikace**.

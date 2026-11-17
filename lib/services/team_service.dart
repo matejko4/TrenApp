@@ -341,7 +341,8 @@ class TeamService {
   }
 
   /// Úplně zruší tým – smaže samotný tým, celý roster (a jeho index u
-  /// každého člena), tréninky i pozvánkový kód. Smí jen správce týmu.
+  /// každého člena), tréninky i s běhy hráčů a pozvánkový kód. Smí jen
+  /// správce týmu.
   /// Operace je nevratná.
   ///
   /// Podkolekce (members, trainings) Firestore se smazáním dokumentu týmu
@@ -361,6 +362,26 @@ class TeamService {
 
     final membersSnap = await teamRef.collection('members').get(fromServer);
     final trainingsSnap = await teamRef.collection('trainings').get(fromServer);
+
+    // Běhy hráčů (podkolekce runs u tréninků) Firestore se smazáním
+    // tréninku sám nesmaže. Mažou se předem po dávkách, aby se hlavní
+    // dávka vešla do limitu 500 zápisů. Tým a správcovo členství musí
+    // zůstat v jedné (hlavní) dávce – viz pravidlo mazání členů.
+    final runsSnaps = await Future.wait([
+      for (final trainingDoc in trainingsSnap.docs)
+        trainingDoc.reference.collection('runs').get(fromServer),
+    ]);
+    final runRefs = [
+      for (final runs in runsSnaps)
+        for (final run in runs.docs) run.reference,
+    ];
+    for (var i = 0; i < runRefs.length; i += 500) {
+      final runsBatch = _db.batch();
+      for (final ref in runRefs.skip(i).take(500)) {
+        runsBatch.delete(ref);
+      }
+      await runsBatch.commit();
+    }
 
     final batch = _db.batch();
     for (final trainingDoc in trainingsSnap.docs) {

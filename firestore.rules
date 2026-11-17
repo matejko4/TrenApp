@@ -171,6 +171,32 @@ service cloud.firestore {
         // Mazání i při rušení celého týmu (TeamService.deleteTeam) – pravidla
         // dávky se vyhodnocují vůči stavu před ní, takže trenér tu pořád je.
         allow delete: if isTeamCoach(teamId);
+
+        // .../trainings/{trainingId}/runs/{uid} – GPS záznam běhu hráče
+        // (RunService). ID dokumentu je uid hráče, takže na jeden trénink
+        // má hráč nejvýš jeden běh – nový přepíše starý.
+        match /runs/{uid} {
+          function isValidRun(data) {
+            return data.keys().hasOnly(['startedAt', 'endedAt', 'durationSeconds', 'distanceMeters', 'points']) &&
+              data.startedAt is timestamp &&
+              data.endedAt is timestamp &&
+              data.durationSeconds is int && data.durationSeconds >= 0 &&
+              data.distanceMeters is int && data.distanceMeters >= 0 &&
+              data.points is list;
+          }
+
+          // Trasu vidí jen hráč sám a trenéři týmu.
+          allow read: if isMe(uid) || isTeamCoach(teamId);
+          // Běh si ukládá hráč sám a jen k tréninku, který je mu zadaný.
+          // Běh uložený bez internetu se odešle až po připojení – pokud
+          // mezitím trenér trénink smazal, get() selže a server běh odmítne.
+          allow create, update: if isMe(uid) && isTeamMember(teamId) &&
+            uid in get(/databases/$(database)/documents/teams/$(teamId)/trainings/$(trainingId)).data.assignedTo &&
+            isValidRun(request.resource.data);
+          // Hráč maže svůj běh při „Zrušit splnění“, trenér spolu se
+          // smazáním tréninku nebo týmu.
+          allow delete: if isMe(uid) || isTeamCoach(teamId);
+        }
       }
     }
 

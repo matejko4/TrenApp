@@ -486,3 +486,125 @@ describe('Tréninky – odpovědi hráčů', () => {
     await assertFails(updateDoc(spolecny('cizi'), { 'responses.cizi': 'yes' }));
   });
 });
+
+describe('Záznam běhu (runs)', () => {
+  const behRef = (fs) => doc(fs, 'teams', TEAM, 'trainings', 'beh');
+  const runRef = (fs, uid, trainingId = 'beh') => doc(fs, 'teams', TEAM, 'trainings', trainingId, 'runs', uid);
+
+  function run(overrides = {}) {
+    const start = Date.now() - 30 * 60 * 1000;
+    return {
+      startedAt: Timestamp.fromMillis(start),
+      endedAt: Timestamp.fromMillis(start + 29 * 60 * 1000),
+      durationSeconds: 1709,
+      distanceMeters: 5230,
+      points: [
+        { lat: 50.0755, lng: 14.4378, t: 0, s: 0 },
+        { lat: 50.0761, lng: 14.4390, t: 12, s: 0 },
+        { lat: 50.0770, lng: 14.4401, t: 95, s: 1 },
+      ],
+      ...overrides,
+    };
+  }
+
+  async function seedRun() {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(runRef(context.firestore(), 'hrac'), run());
+    });
+  }
+
+  // Stejná dávka jako RunService.saveRun: běh + „splněno“ v tréninku.
+  function saveBatch(uid, data = run(), trainingId = 'beh') {
+    const fs = db(uid);
+    const batch = writeBatch(fs);
+    batch.set(runRef(fs, uid, trainingId), data);
+    batch.update(doc(fs, 'teams', TEAM, 'trainings', trainingId), { [`responses.${uid}`]: 'done' });
+    return batch.commit();
+  }
+
+  it('hráč uloží běh a trénink se mu označí jako splněný (RunService.saveRun)', async () => {
+    await assertSucceeds(saveBatch('hrac'));
+  });
+
+  it('nový běh přepíše starý', async () => {
+    await seedRun();
+    await assertSucceeds(saveBatch('hrac', run({ distanceMeters: 6100 })));
+  });
+
+  it('běh nejde uložit k tréninku, který hráči není zadaný', async () => {
+    await assertFails(saveBatch('hrac2'));
+    await assertFails(setDoc(runRef(db('hrac'), 'hrac', 'spolecny'), run()));
+  });
+
+  it('hráč neuloží běh za jiného hráče a nečlen vůbec', async () => {
+    await assertFails(setDoc(runRef(db('hrac2'), 'hrac'), run()));
+    await assertFails(setDoc(runRef(db('cizi'), 'cizi'), run()));
+  });
+
+  it('běh s chybnými údaji neprojde', async () => {
+    const hrac = db('hrac');
+    await assertFails(setDoc(runRef(hrac, 'hrac'), run({ durationSeconds: 1709.5 })));
+    await assertFails(setDoc(runRef(hrac, 'hrac'), run({ distanceMeters: -1 })));
+    await assertFails(setDoc(runRef(hrac, 'hrac'), run({ startedAt: 'včera' })));
+    await assertFails(setDoc(runRef(hrac, 'hrac'), run({ points: 'trasa' })));
+    await assertFails(setDoc(runRef(hrac, 'hrac'), run({ tempo: '5:27' })));
+    const { points, ...withoutPoints } = run();
+    await assertFails(setDoc(runRef(hrac, 'hrac'), withoutPoints));
+  });
+
+  it('běh vidí hráč sám a trenér, jiný hráč ne', async () => {
+    await seedRun();
+    await assertSucceeds(getDoc(runRef(db('hrac'), 'hrac')));
+    await assertSucceeds(getDoc(runRef(db('trener2'), 'hrac')));
+    await assertFails(getDoc(runRef(db('hrac2'), 'hrac')));
+    await assertFails(getDoc(runRef(db('cizi'), 'hrac')));
+  });
+
+  it('všechny běhy tréninku načte jen trenér (mazání tréninku a týmu)', async () => {
+    await seedRun();
+    await assertSucceeds(getDocs(collection(db('trener'), 'teams', TEAM, 'trainings', 'beh', 'runs')));
+    await assertFails(getDocs(collection(db('hrac'), 'teams', TEAM, 'trainings', 'beh', 'runs')));
+  });
+
+  it('„Zrušit splnění“ smaže běh i odpověď (TrainingService.respond)', async () => {
+    await seedRun();
+    const hrac = db('hrac');
+    const batch = writeBatch(hrac);
+    batch.delete(runRef(hrac, 'hrac'));
+    batch.update(behRef(hrac), { 'responses.hrac': deleteField() });
+    await assertSucceeds(batch.commit());
+  });
+
+  it('jiný hráč cizí běh nesmaže', async () => {
+    await seedRun();
+    await assertFails(deleteDoc(runRef(db('hrac2'), 'hrac')));
+  });
+
+  it('trenér smaže trénink i s běhy (TrainingService.deleteTraining)', async () => {
+    await seedRun();
+    const trener2 = db('trener2');
+    const batch = writeBatch(trener2);
+    batch.delete(runRef(trener2, 'hrac'));
+    batch.delete(behRef(trener2));
+    await assertSucceeds(batch.commit());
+  });
+
+  it('správce zruší tým i s běhy (TeamService.deleteTeam)', async () => {
+    await seedRun();
+    const trener = db('trener');
+    // Běhy se mažou zvlášť před hlavní dávkou (kvůli limitu 500 zápisů).
+    const runsBatch = writeBatch(trener);
+    runsBatch.delete(runRef(trener, 'hrac'));
+    await assertSucceeds(runsBatch.commit());
+
+    const batch = writeBatch(trener);
+    for (const id of ['spolecny', 'beh']) batch.delete(doc(trener, 'teams', TEAM, 'trainings', id));
+    for (const [uid] of MEMBERS) {
+      batch.delete(doc(trener, 'teams', TEAM, 'members', uid));
+      batch.delete(doc(trener, 'users', uid, 'teams', TEAM));
+    }
+    batch.delete(doc(trener, 'team_codes', CODE));
+    batch.delete(doc(trener, 'teams', TEAM));
+    await assertSucceeds(batch.commit());
+  });
+});

@@ -5,6 +5,7 @@ import '../screens/run_screen.dart';
 import '../services/training_service.dart';
 import '../utils/date_format.dart';
 import '../utils/error_text.dart';
+import 'common.dart';
 
 // Widgety pro zobrazení tréninku sdílené kalendářem a detailem tréninku.
 
@@ -271,6 +272,21 @@ class TrainingPlayerActions extends StatelessWidget {
     }
   }
 
+  /// Zrušení splnění smaže i záznam běhu (viz TrainingService.respond) –
+  /// u běhu se proto nejdřív zeptá, ať hráč trasu nesmaže omylem.
+  Future<void> _undoDone(BuildContext context) async {
+    if (training.type == TrainingType.run) {
+      final confirmed = await confirmDialog(
+        context,
+        title: 'Zrušit splnění?',
+        message: 'Smaže se i zaznamenaný běh, pokud nějaký máš.',
+        confirmLabel: 'Zrušit splnění',
+      );
+      if (!confirmed || !context.mounted) return;
+    }
+    await _respond(context, null);
+  }
+
   @override
   Widget build(BuildContext context) {
     final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
@@ -318,7 +334,7 @@ class TrainingPlayerActions extends StatelessWidget {
             label,
             const Spacer(),
             TextButton(
-              onPressed: () => _respond(context, null),
+              onPressed: () => _undoDone(context),
               child: const Text('Zrušit splnění'),
             ),
           ],
@@ -334,7 +350,7 @@ class TrainingPlayerActions extends StatelessWidget {
             ),
           );
         }
-        // Běh jde zatím (než bude hotový GPS záznam) splnit i ručně.
+        // Běh jde splnit i ručně – např. když hráč běžel bez telefonu.
         return Row(
           children: [
             Expanded(

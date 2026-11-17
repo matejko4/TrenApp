@@ -341,24 +341,39 @@ class TrainingService {
     return waitForServer(ref.update(data));
   }
 
-  /// Smaže trénink. Smí jen trenér týmu.
+  /// Smaže trénink i se zaznamenanými běhy hráčů. Smí jen trenér týmu.
   ///
   /// Smazání vyžaduje internet: nejdřív se trénink přečte přímo ze
   /// serveru – bez připojení to skončí chybou „bez internetu“ (viz
   /// errorText) a nic se nesmaže ani nezařadí do fronty v telefonu.
   Future<void> deleteTraining(String teamId, String trainingId) async {
+    const fromServer = GetOptions(source: Source.server);
     final ref = _trainings(teamId).doc(trainingId);
-    await ref.get(const GetOptions(source: Source.server));
-    await ref.delete();
+    await ref.get(fromServer);
+    // Firestore se smazáním dokumentu jeho podkolekci (běhy z GPS)
+    // nesmaže – běhy se proto mažou ve stejné dávce. Ze serveru, protože
+    // cizí běhy trenér v telefonu mít nemusí.
+    final runs = await ref.collection('runs').get(fromServer);
+    final batch = _db.batch();
+    for (final run in runs.docs) {
+      batch.delete(run.reference);
+    }
+    batch.delete(ref);
+    await batch.commit();
   }
 
   /// Uloží odpověď aktuálního hráče – [TrainingResponse.yes] / [TrainingResponse.no]
   /// u společného tréninku, [TrainingResponse.done] u individuálního.
-  /// `null` odpověď smaže (zpět na „bez odpovědi“ / „naplánovaný“).
+  /// `null` odpověď smaže (zpět na „bez odpovědi“ / „naplánovaný“) a se
+  /// zrušením splnění smaže i hráčův záznam běhu, pokud nějaký má – trenér
+  /// tak neuvidí běh u nesplněného tréninku.
   Future<void> respond(
       String teamId, String trainingId, TrainingResponse? response) {
-    return _trainings(teamId).doc(trainingId).update({
-      FieldPath(['responses', _uid]): response?.name ?? FieldValue.delete(),
-    });
+    final uid = _uid;
+    final ref = _trainings(teamId).doc(trainingId);
+    final batch = _db.batch()
+      ..update(ref, {'responses.$uid': response?.name ?? FieldValue.delete()});
+    if (response == null) batch.delete(ref.collection('runs').doc(uid));
+    return batch.commit();
   }
 }

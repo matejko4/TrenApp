@@ -1,17 +1,24 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import '../services/run_service.dart';
 import '../services/team_service.dart';
 import '../services/training_service.dart';
 import '../utils/date_format.dart';
 import '../utils/error_text.dart';
 import '../widgets/common.dart';
+import '../widgets/run_widgets.dart';
 import '../widgets/training_widgets.dart';
+import 'run_detail_screen.dart';
 import 'training_form_screen.dart';
 
 /// Detail tréninku. Hráč tu vidí zadání a odpovídá, trenér vidí jmenovitý
 /// přehled odpovědí (kdo přijde / nepřijde / neodpověděl, u individuálního
 /// tréninku kdo ho splnil) a může trénink upravit nebo smazat.
+///
+/// U běhu hráč vidí svůj zaznamenaný běh a trenér si klepnutím na hráče
+/// otevře mapu jeho trasy.
 class TrainingDetailScreen extends StatefulWidget {
   const TrainingDetailScreen({
     super.key,
@@ -34,6 +41,11 @@ class _TrainingDetailScreenState extends State<TrainingDetailScreen> {
       _trainingService.streamTraining(widget.teamId, widget.trainingId);
   late final Stream<QuerySnapshot<Map<String, dynamic>>>? _members =
       widget.isCoach ? TeamService().streamTeamMembers(widget.teamId) : null;
+  // Hráčův vlastní běh (jen jeden dokument). Trenér běhy předem nenačítá –
+  // každý nese celou trasu, otevírají se až po klepnutí na hráče.
+  late final Stream<Run?>? _myRun = widget.isCoach
+      ? null
+      : RunService().streamMyRun(widget.teamId, widget.trainingId);
   bool _deleting = false;
 
   Future<void> _delete(Training training) async {
@@ -147,9 +159,10 @@ class _TrainingDetailScreenState extends State<TrainingDetailScreen> {
         if (description != null)
           _InfoTile(icon: Icons.notes, text: description),
         const Divider(height: 32),
-        if (members == null)
-          TrainingPlayerActions(teamId: widget.teamId, training: training)
-        else
+        if (members == null) ...[
+          TrainingPlayerActions(teamId: widget.teamId, training: training),
+          if (_isRun(training)) _buildMyRun(),
+        ] else
           StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
             stream: members,
             builder: (context, snapshot) {
@@ -204,12 +217,80 @@ class _TrainingDetailScreenState extends State<TrainingDetailScreen> {
     );
   }
 
+  /// Individuální běh – jen u něj můžou existovat záznamy z GPS.
+  bool _isRun(Training training) =>
+      !training.isTeam && training.type == TrainingType.run;
+
+  void _openRun(String uid, String title) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => RunDetailScreen(
+          teamId: widget.teamId,
+          trainingId: widget.trainingId,
+          uid: uid,
+          title: title,
+        ),
+      ),
+    );
+  }
+
+  /// Karta „Můj běh“ – hráčův zaznamenaný běh (i offline z telefonu).
+  /// Když běh nemá (zatím neběžel, nebo trénink splnil ručně), nic se
+  /// nezobrazí.
+  Widget _buildMyRun() {
+    return StreamBuilder<Run?>(
+      stream: _myRun,
+      builder: (context, snapshot) {
+        final run = snapshot.data;
+        if (run == null) return const SizedBox.shrink();
+        return Card.outlined(
+          margin: const EdgeInsets.only(top: 16),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SectionTitle('Můj běh'),
+                    const SizedBox(height: 8),
+                    RunStats(run: run),
+                  ],
+                ),
+              ),
+              SizedBox(
+                height: 180,
+                child: RunMap(run: run, interactive: false),
+              ),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  icon: const Icon(Icons.map),
+                  label: const Text('Zobrazit trasu'),
+                  onPressed: () => _openRun(
+                    FirebaseAuth.instance.currentUser!.uid,
+                    'Můj běh',
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   /// Stav individuálního tréninku u každého hráče, kterému je zadaný.
+  /// U běhu jde řádek hráče otevřít – mapa a údaje o jeho běhu.
   Widget _buildIndividualOverview(
       Training training, Map<String, String> players) {
     // Hráči, kteří mezitím z týmu odešli, se nezobrazují.
     final assigned = training.assignedTo.where(players.containsKey).toList()
       ..sort((a, b) => players[a]!.compareTo(players[b]!));
+    final isRun = _isRun(training);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -223,7 +304,14 @@ class _TrainingDetailScreenState extends State<TrainingDetailScreen> {
               child: Icon(Icons.directions_run, color: Colors.white),
             ),
             title: Text(players[uid]!),
-            trailing: individualStatusLabel(training.statusOf(uid)),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                individualStatusLabel(training.statusOf(uid)),
+                if (isRun) const Icon(Icons.chevron_right),
+              ],
+            ),
+            onTap: isRun ? () => _openRun(uid, players[uid]!) : null,
           ),
       ],
     );
