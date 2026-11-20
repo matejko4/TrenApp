@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../theme/app_theme.dart';
+
 // Drobné widgety a dialogy sdílené více obrazovkami.
 
 /// Nadpis sekce – malé tučné písmo velkými písmeny (např. „PROFIL“,
@@ -20,32 +22,31 @@ class SectionTitle extends StatelessWidget {
       padding: padding,
       child: Text(
         title.toUpperCase(),
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 12,
-          fontWeight: FontWeight.bold,
-          color: Colors.indigo,
-          letterSpacing: 1,
+          fontWeight: FontWeight.w800,
+          color: Theme.of(context).colorScheme.primary,
+          letterSpacing: 1.2,
         ),
       ),
     );
   }
 }
 
-/// Kolečko s ikonou role v týmu – trenér (indigo, píšťalka) nebo hráč
-/// (teal, běžec).
+/// Ikona role v týmu – trenér (fialový přechod, píšťalka) nebo hráč
+/// (zelenomodrý přechod, běžec).
 class RoleAvatar extends StatelessWidget {
-  const RoleAvatar({super.key, required this.isCoach});
+  const RoleAvatar({super.key, required this.isCoach, this.size = 40});
 
   final bool isCoach;
+  final double size;
 
   @override
   Widget build(BuildContext context) {
-    return CircleAvatar(
-      backgroundColor: isCoach ? Colors.indigo : Colors.teal,
-      child: Icon(
-        isCoach ? Icons.sports : Icons.directions_run,
-        color: Colors.white,
-      ),
+    return IconBadge(
+      icon: isCoach ? Icons.sports : Icons.directions_run,
+      size: size,
+      gradient: isCoach ? AppColors.brandGradient : AppColors.playerGradient,
     );
   }
 }
@@ -70,7 +71,9 @@ Future<bool> confirmDialog(
         ),
         TextButton(
           onPressed: () => Navigator.of(context).pop(true),
-          style: TextButton.styleFrom(foregroundColor: Colors.red),
+          style: TextButton.styleFrom(
+            foregroundColor: Theme.of(context).colorScheme.error,
+          ),
           child: Text(confirmLabel),
         ),
       ],

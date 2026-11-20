@@ -1,18 +1,21 @@
 import 'package:flutter/material.dart';
 
 import '../services/auth_service.dart';
+import '../theme/app_theme.dart';
 import '../utils/error_text.dart';
 import '../widgets/account_actions.dart';
 import '../widgets/app_bottom_bar.dart';
 import '../widgets/common.dart';
 
-/// Nastavení účtu: změna jména, hesla a odhlášení.
+/// Nastavení účtu: změna jména, hesla, vzhled (světlý / tmavý režim)
+/// a odhlášení.
 class AccountSettingsScreen extends StatelessWidget {
   const AccountSettingsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     final authService = AuthService();
+    final colors = Theme.of(context).colorScheme;
 
     return Scaffold(
       appBar: AppBar(
@@ -28,82 +31,115 @@ class AccountSettingsScreen extends StatelessWidget {
           final hasPassword = authService.hasPasswordLogin;
 
           return ListView(
-            padding: const EdgeInsets.symmetric(vertical: 16),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
             children: [
-              Center(
-                child: CircleAvatar(
-                  radius: 36,
-                  backgroundColor: Colors.indigo,
-                  child: Text(
-                    name.isNotEmpty ? name[0].toUpperCase() : '?',
-                    style: const TextStyle(fontSize: 28, color: Colors.white),
-                  ),
+              // Profil – kolečko s počátečním písmenem, jméno a e-mail.
+              GradientCard(
+                child: Row(
+                  children: [
+                    Container(
+                      width: 64,
+                      height: 64,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white.withValues(alpha: 0.2),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.5),
+                          width: 2,
+                        ),
+                      ),
+                      child: Text(
+                        name.isNotEmpty ? name[0].toUpperCase() : '?',
+                        style: const TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            name.isNotEmpty ? name : 'Bez jména',
+                            style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            email,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.8),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 12),
-              Text(
-                name.isNotEmpty ? name : 'Bez jména',
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              Text(
-                email,
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.black54),
-              ),
-              const SizedBox(height: 24),
-              const SectionTitle(
-                'Profil',
-                padding: EdgeInsets.fromLTRB(16, 16, 16, 4),
-              ),
-              ListTile(
-                leading: const Icon(Icons.badge_outlined),
-                title: const Text('Změnit jméno'),
-                subtitle: Text(name.isNotEmpty ? name : 'Nevyplněno'),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => showDialog(
-                  context: context,
-                  builder: (_) => EditNameDialog(currentName: name),
-                ),
-              ),
-              const SectionTitle(
-                'Zabezpečení',
-                padding: EdgeInsets.fromLTRB(16, 16, 16, 4),
-              ),
-              if (hasPassword) ...[
+              const SizedBox(height: 8),
+              const _GroupTitle('Profil'),
+              _Group(children: [
                 ListTile(
-                  leading: const Icon(Icons.lock_outline),
-                  title: const Text('Změnit heslo'),
+                  leading: const Icon(Icons.badge_outlined),
+                  title: const Text('Změnit jméno'),
+                  subtitle: Text(name.isNotEmpty ? name : 'Nevyplněno'),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => showDialog(
                     context: context,
-                    builder: (_) => const ChangePasswordDialog(),
+                    builder: (_) => EditNameDialog(currentName: name),
                   ),
                 ),
+              ]),
+              const _GroupTitle('Vzhled'),
+              const _Group(children: [_ThemeModePicker()]),
+              const _GroupTitle('Zabezpečení'),
+              _Group(children: [
+                if (hasPassword) ...[
+                  ListTile(
+                    leading: const Icon(Icons.lock_outline),
+                    title: const Text('Změnit heslo'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => showDialog(
+                      context: context,
+                      builder: (_) => const ChangePasswordDialog(),
+                    ),
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.mail_outline),
+                    title: const Text('Zapomenuté heslo'),
+                    subtitle: const Text('Pošle odkaz pro obnovení na e-mail'),
+                    onTap: () => _sendPasswordReset(context, authService),
+                  ),
+                ] else
+                  const ListTile(
+                    leading: Icon(Icons.g_mobiledata),
+                    title: Text('Přihlášení přes Google'),
+                    subtitle: Text('Heslo se spravuje ve tvém Google účtu.'),
+                  ),
+              ]),
+              const SizedBox(height: 16),
+              _Group(children: [
                 ListTile(
-                  leading: const Icon(Icons.mail_outline),
-                  title: const Text('Zapomenuté heslo'),
-                  subtitle: const Text('Pošle odkaz pro obnovení na e-mail'),
-                  onTap: () => _sendPasswordReset(context, authService),
+                  leading: Icon(Icons.logout, color: colors.error),
+                  title: Text(
+                    'Odhlásit se',
+                    style: TextStyle(
+                      color: colors.error,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  onTap: () => logOut(context),
                 ),
-              ] else
-                const ListTile(
-                  leading: Icon(Icons.g_mobiledata),
-                  title: Text('Přihlášení přes Google'),
-                  subtitle: Text('Heslo se spravuje ve tvém Google účtu.'),
-                ),
-              const Divider(height: 32),
-              ListTile(
-                leading: const Icon(Icons.logout, color: Colors.red),
-                title: const Text(
-                  'Odhlásit se',
-                  style: TextStyle(color: Colors.red),
-                ),
-                onTap: () => logOut(context),
-              ),
+              ]),
             ],
           );
         },
@@ -128,6 +164,85 @@ class AccountSettingsScreen extends StatelessWidget {
         SnackBar(content: Text(errorText(e))),
       );
     }
+  }
+}
+
+/// Nadpis skupiny nastavení (např. „PROFIL“).
+class _GroupTitle extends StatelessWidget {
+  const _GroupTitle(this.title);
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return SectionTitle(title, padding: const EdgeInsets.fromLTRB(4, 20, 4, 8));
+  }
+}
+
+/// Skupina položek nastavení v jedné kartě, oddělených čarou.
+class _Group extends StatelessWidget {
+  const _Group({required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: EdgeInsets.zero,
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: [
+          for (var i = 0; i < children.length; i++) ...[
+            if (i > 0) const Divider(height: 1, indent: 56),
+            children[i],
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Volba vzhledu: podle systému telefonu, světlý, nebo tmavý režim.
+/// Změna se projeví hned v celé aplikaci a uloží se do telefonu
+/// (viz ThemeController v theme/app_theme.dart).
+class _ThemeModePicker extends StatelessWidget {
+  const _ThemeModePicker();
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = ThemeController.instance;
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: controller,
+      builder: (context, mode, _) => Padding(
+        padding: const EdgeInsets.all(12),
+        child: SizedBox(
+          width: double.infinity,
+          child: SegmentedButton<ThemeMode>(
+            showSelectedIcon: false,
+            segments: const [
+              ButtonSegment(
+                value: ThemeMode.system,
+                label: Text('Systém'),
+                icon: Icon(Icons.brightness_auto_outlined),
+              ),
+              ButtonSegment(
+                value: ThemeMode.light,
+                label: Text('Světlý'),
+                icon: Icon(Icons.light_mode_outlined),
+              ),
+              ButtonSegment(
+                value: ThemeMode.dark,
+                label: Text('Tmavý'),
+                icon: Icon(Icons.dark_mode_outlined),
+              ),
+            ],
+            selected: {mode},
+            onSelectionChanged: (selection) =>
+                controller.setMode(selection.first),
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -192,14 +307,14 @@ class _EditNameDialogState extends State<EditNameDialog> {
             controller: _nameController,
             autofocus: true,
             textCapitalization: TextCapitalization.words,
-            decoration: const InputDecoration(
-              labelText: 'Jméno',
-              border: OutlineInputBorder(),
-            ),
+            decoration: const InputDecoration(labelText: 'Jméno'),
           ),
           if (_error.isNotEmpty) ...[
             const SizedBox(height: 12),
-            Text(_error, style: const TextStyle(color: Colors.red)),
+            Text(
+              _error,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
           ],
         ],
       ),
@@ -279,10 +394,7 @@ class _ChangePasswordDialogState extends State<ChangePasswordDialog> {
       controller: controller,
       obscureText: true,
       autofocus: autofocus,
-      decoration: InputDecoration(
-        labelText: label,
-        border: const OutlineInputBorder(),
-      ),
+      decoration: InputDecoration(labelText: label),
     );
   }
 
@@ -302,7 +414,10 @@ class _ChangePasswordDialogState extends State<ChangePasswordDialog> {
             _passwordField(_confirmController, 'Nové heslo znovu'),
             if (_error.isNotEmpty) ...[
               const SizedBox(height: 12),
-              Text(_error, style: const TextStyle(color: Colors.red)),
+              Text(
+                _error,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
             ],
           ],
         ),

@@ -59,3 +59,28 @@ String formatDayHeader(DateTime date) {
   }
   return '$prefix${formatDate(date)}';
 }
+
+/// Za jak dlouho akce začne – např. „za 45 min“, „za 2 h 15 min“,
+/// „zítra“, „za 3 dny“, „za 12 dní“. Už začatá akce „právě probíhá“.
+/// [now] jde zadat kvůli testům, jinak se použije aktuální čas.
+String formatCountdown(DateTime start, {DateTime? now}) {
+  final current = now ?? DateTime.now();
+  final diff = start.difference(current);
+  if (diff.isNegative) return 'právě probíhá';
+  if (diff.inMinutes < 60) {
+    return 'za ${diff.inMinutes < 1 ? 1 : diff.inMinutes} min';
+  }
+
+  // Rozdíl v kalendářních dnech (půlnoc–půlnoc). Zaokrouhlení kvůli
+  // změně letního času, kdy den nemá přesně 24 hodin.
+  final today = DateTime(current.year, current.month, current.day);
+  final day = DateTime(start.year, start.month, start.day);
+  final days = (day.difference(today).inHours / 24).round();
+
+  if (days == 0) {
+    final minutes = diff.inMinutes % 60;
+    return 'za ${diff.inHours} h${minutes == 0 ? '' : ' $minutes min'}';
+  }
+  if (days == 1) return 'zítra';
+  return days <= 4 ? 'za $days dny' : 'za $days dní';
+}

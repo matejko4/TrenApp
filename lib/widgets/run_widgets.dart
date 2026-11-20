@@ -3,6 +3,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../services/run_service.dart';
+import '../theme/app_theme.dart';
 import '../utils/date_format.dart';
 import '../utils/run_format.dart';
 
@@ -25,14 +26,16 @@ class RunMap extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final points = [for (final p in run.points) LatLng(p.lat, p.lng)];
     if (points.isEmpty) {
-      return const ColoredBox(
-        color: Color(0xFFEEEEEE),
+      return ColoredBox(
+        color: colors.surfaceContainerHighest,
         child: Center(
           child: Text(
             'Trasa se nezaznamenala (GPS nenašlo signál).',
-            style: TextStyle(color: Colors.black54),
+            style: TextStyle(color: colors.onSurfaceVariant),
           ),
         ),
       );
@@ -65,6 +68,8 @@ class RunMap extends StatelessWidget {
         TileLayer(
           urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
           userAgentPackageName: 'com.example.tren_app',
+          // V tmavém režimu se mapa „obrátí“ do tmavých barev.
+          tileBuilder: isDark ? darkModeTileBuilder : null,
         ),
         PolylineLayer(
           polylines: [
@@ -74,7 +79,7 @@ class RunMap extends StatelessWidget {
                 Polyline(
                   points: [for (final p in segment) LatLng(p.lat, p.lng)],
                   strokeWidth: 5,
-                  color: Colors.teal,
+                  color: AppColors.individual,
                 ),
           ],
         ),
@@ -82,12 +87,15 @@ class RunMap extends StatelessWidget {
           markers: [
             Marker(
               point: points.first,
-              child: const _MapPin(color: Colors.green, icon: Icons.play_arrow),
+              child: const _MapPin(
+                color: AppColors.success,
+                icon: Icons.play_arrow,
+              ),
             ),
             if (!singleSpot)
               Marker(
                 point: points.last,
-                child: const _MapPin(color: Colors.red, icon: Icons.flag),
+                child: const _MapPin(color: AppColors.danger, icon: Icons.flag),
               ),
           ],
         ),
@@ -148,7 +156,7 @@ class RunStats extends StatelessWidget {
         Text(
           '${formatDate(run.startedAt)} v ${formatTime(run.startedAt)}'
           '${pauses == 0 ? '' : ' · pauzy: $pauses'}',
-          style: const TextStyle(color: Colors.black54),
+          style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
         ),
       ],
     );
@@ -178,11 +186,17 @@ class RunValue extends StatelessWidget {
             value,
             style: TextStyle(
               fontSize: fontSize,
-              fontWeight: FontWeight.bold,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.5,
               fontFeatures: const [FontFeature.tabularFigures()],
             ),
           ),
-          Text(label, style: const TextStyle(color: Colors.black54)),
+          Text(
+            label,
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
         ],
       ),
     );

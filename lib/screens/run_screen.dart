@@ -6,6 +6,7 @@ import 'package:geolocator/geolocator.dart';
 import '../services/run_service.dart';
 import '../services/run_tracker.dart';
 import '../services/training_service.dart';
+import '../theme/app_theme.dart';
 import '../utils/error_text.dart';
 import '../utils/run_format.dart';
 import '../widgets/common.dart';
@@ -156,9 +157,11 @@ class _RunScreenState extends State<RunScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     final description = widget.training.description;
     final seconds = _tracker.activeSeconds;
     final meters = _tracker.distanceMeters;
+    final statusColor = _statusColor();
 
     // Zpět (tlačítko i šipka v AppBaru) během běhu nebo po něm se nejdřív
     // zeptá, jestli běh zahodit.
@@ -174,17 +177,55 @@ class _RunScreenState extends State<RunScreen> {
             padding: const EdgeInsets.all(24),
             child: Column(
               children: [
-                _StatusBanner(text: _statusText(), color: _statusColor()),
+                _StatusBanner(text: _statusText(), color: statusColor),
                 const Spacer(),
-                Text(
-                  formatDuration(seconds),
-                  style: const TextStyle(
-                    fontSize: 72,
-                    fontWeight: FontWeight.bold,
-                    fontFeatures: [FontFeature.tabularFigures()],
+                // Čas uprostřed velkého kruhu v barvě stavu. Kruh se na
+                // menším displeji zmenší (Flexible + AspectRatio), čísla
+                // se do něj vždy vejdou (FittedBox).
+                Flexible(
+                  flex: 8,
+                  child: ConstrainedBox(
+                    constraints:
+                        const BoxConstraints(maxWidth: 260, maxHeight: 260),
+                    child: AspectRatio(
+                      aspectRatio: 1,
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 300),
+                        padding: const EdgeInsets.all(28),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: statusColor.withValues(alpha: 0.08),
+                          border: Border.all(
+                            color: statusColor.withValues(alpha: 0.6),
+                            width: 6,
+                          ),
+                        ),
+                        child: FittedBox(
+                          child: Column(
+                            children: [
+                              Text(
+                                formatDuration(seconds),
+                                style: const TextStyle(
+                                  fontSize: 64,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: -1,
+                                  fontFeatures: [FontFeature.tabularFigures()],
+                                ),
+                              ),
+                              Text(
+                                'Čas',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  color: colors.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
                 ),
-                const Text('Čas', style: TextStyle(color: Colors.black54)),
                 const SizedBox(height: 32),
                 Row(
                   children: [
@@ -209,7 +250,7 @@ class _RunScreenState extends State<RunScreen> {
                   Text(
                     _gpsWarning,
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.orange.shade900),
+                    style: const TextStyle(color: AppColors.warning),
                   ),
                   const SizedBox(height: 12),
                 ],
@@ -217,7 +258,7 @@ class _RunScreenState extends State<RunScreen> {
                   Text(
                     _error,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(color: Colors.red),
+                    style: TextStyle(color: colors.error),
                   ),
                   const SizedBox(height: 12),
                 ],
@@ -240,10 +281,11 @@ class _RunScreenState extends State<RunScreen> {
       };
 
   Color _statusColor() => switch (_state) {
-        RunState.ready => Colors.blueGrey,
-        RunState.running => _tracker.hasFix ? Colors.green : Colors.orange,
-        RunState.paused => Colors.orange,
-        RunState.finished => Colors.indigo,
+        RunState.ready => AppColors.planned,
+        RunState.running =>
+          _tracker.hasFix ? AppColors.success : AppColors.warning,
+        RunState.paused => AppColors.warning,
+        RunState.finished => AppColors.team,
       };
 
   Widget _buildButtons() {
@@ -256,21 +298,21 @@ class _RunScreenState extends State<RunScreen> {
     final stop = _BigButton(
       label: 'Ukončit',
       icon: Icons.stop,
-      color: Colors.red,
+      color: AppColors.danger,
       onPressed: _finish,
     );
     return switch (_state) {
       RunState.ready => _BigButton(
           label: 'Start',
           icon: Icons.play_arrow,
-          color: Colors.green,
+          color: AppColors.success,
           onPressed: _start,
         ),
       RunState.running => _ButtonRow(
           left: _BigButton(
             label: 'Pauza',
             icon: Icons.pause,
-            color: Colors.orange,
+            color: AppColors.warning,
             outlined: true,
             onPressed: () => setState(_tracker.pause),
           ),
@@ -280,7 +322,7 @@ class _RunScreenState extends State<RunScreen> {
           left: _BigButton(
             label: 'Pokračovat',
             icon: Icons.play_arrow,
-            color: Colors.green,
+            color: AppColors.success,
             onPressed: () => setState(_tracker.resume),
           ),
           right: stop,
@@ -289,14 +331,14 @@ class _RunScreenState extends State<RunScreen> {
           left: _BigButton(
             label: 'Zahodit',
             icon: Icons.delete_outline,
-            color: Colors.red,
+            color: AppColors.danger,
             outlined: true,
             onPressed: _confirmDiscard,
           ),
           right: _BigButton(
             label: 'Uložit běh',
             icon: Icons.save,
-            color: Colors.indigo,
+            color: AppColors.brand,
             onPressed: _save,
           ),
         ),
@@ -312,12 +354,14 @@ class _StatusBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(8),
+        color: color.withValues(alpha: isDark ? 0.22 : 0.12),
+        borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
         text,
@@ -369,7 +413,8 @@ class _BigButton extends StatelessWidget {
         style: OutlinedButton.styleFrom(
           minimumSize: size,
           foregroundColor: color,
-          side: BorderSide(color: color),
+          side: BorderSide(color: color, width: 1.5),
+          shape: const StadiumBorder(),
         ),
         icon: Icon(icon),
         label: Text(label),
@@ -377,7 +422,12 @@ class _BigButton extends StatelessWidget {
       );
     }
     return FilledButton.icon(
-      style: FilledButton.styleFrom(minimumSize: size, backgroundColor: color),
+      style: FilledButton.styleFrom(
+        minimumSize: size,
+        backgroundColor: color,
+        foregroundColor: Colors.white,
+        shape: const StadiumBorder(),
+      ),
       icon: Icon(icon),
       label: Text(label),
       onPressed: onPressed,

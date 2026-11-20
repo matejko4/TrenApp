@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../theme/app_theme.dart';
+
 /// Zástupný obsah pro obrazovky, jejichž funkce se teprve připravuje.
 class ComingSoon extends StatelessWidget {
   const ComingSoon({
@@ -15,28 +17,25 @@ class ComingSoon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 72, color: Colors.indigo),
-            const SizedBox(height: 16),
+            IconBadge(icon: icon, size: 88, gradient: AppColors.brandGradient),
+            const SizedBox(height: 20),
             Text(
               title,
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                color: Colors.indigo,
-              ),
+              style: Theme.of(context).textTheme.headlineSmall,
             ),
             const SizedBox(height: 8),
             Text(
               message,
               textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.black54),
+              style: TextStyle(color: colors.onSurfaceVariant),
             ),
           ],
         ),

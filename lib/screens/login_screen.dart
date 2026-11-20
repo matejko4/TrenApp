@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
+import '../theme/app_theme.dart';
 import '../utils/error_text.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -77,98 +78,168 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
     return Scaffold(
-      backgroundColor: Colors.indigo.shade50,
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.sports, size: 80, color: Colors.indigo),
-              const SizedBox(height: 16),
-              const Text('TrenApp',
-                  style: TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.indigo)),
-              const SizedBox(height: 32),
-              if (!_isLogin) ...[
-                TextField(
-                  controller: _nameController,
-                  textCapitalization: TextCapitalization.words,
-                  decoration: const InputDecoration(
-                    labelText: 'Jméno',
-                    hintText: 'např. Jan Novák',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.person),
-                  ),
-                ),
-                const SizedBox(height: 16),
-              ],
-              TextField(
-                controller: _emailController,
-                decoration: const InputDecoration(
-                  labelText: 'Email',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.email),
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _passwordController,
-                obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: 'Heslo',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.lock),
-                ),
-              ),
-              if (_isLogin)
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton(
-                    onPressed: _loading ? null : _forgotPassword,
-                    child: const Text('Zapomenuté heslo?'),
-                  ),
-                ),
-              if (_error.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                Text(_error, style: const TextStyle(color: Colors.red)),
-              ],
-              const SizedBox(height: 24),
-              _loading
-                  ? const CircularProgressIndicator()
-                  : Column(
-                      children: [
-                        ElevatedButton(
-                          onPressed: _submit,
-                          style: ElevatedButton.styleFrom(
-                            minimumSize: const Size(double.infinity, 50),
-                            backgroundColor: Colors.indigo,
-                            foregroundColor: Colors.white,
-                          ),
-                          child: Text(_isLogin ? 'Přihlásit se' : 'Registrovat'),
-                        ),
-                        const SizedBox(height: 12),
-                        OutlinedButton.icon(
-                          onPressed: _googleSignIn,
-                          icon: const Icon(Icons.g_mobiledata, size: 28),
-                          label: const Text('Přihlásit přes Google'),
-                          style: OutlinedButton.styleFrom(
-                            minimumSize: const Size(double.infinity, 50),
-                          ),
-                        ),
-                      ],
+      body: GradientBackground(
+        child: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: ConstrainedBox(
+                // Na tabletu / širokém okně formulář nepřeroste.
+                constraints: const BoxConstraints(maxWidth: 440),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const IconBadge(icon: Icons.sports, size: 84),
+                    const SizedBox(height: 20),
+                    const Text(
+                      'TrenApp',
+                      style: TextStyle(
+                        fontSize: 40,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -1,
+                        color: Colors.white,
+                      ),
                     ),
-              const SizedBox(height: 12),
-              TextButton(
-                onPressed: () => setState(() => _isLogin = !_isLogin),
-                child: Text(_isLogin
-                    ? 'Nemáš účet? Zaregistruj se'
-                    : 'Máš účet? Přihlas se'),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Tréninky, zápasy a celý tým na jednom místě',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.85),
+                        fontSize: 15,
+                      ),
+                    ),
+                    const SizedBox(height: 32),
+                    Card(
+                      elevation: 8,
+                      shadowColor: Colors.black38,
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text(
+                              _isLogin ? 'Vítej zpět' : 'Nový účet',
+                              style: Theme.of(context).textTheme.headlineSmall,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              _isLogin
+                                  ? 'Přihlas se ke svému účtu.'
+                                  : 'Vyplň jméno, e-mail a heslo.',
+                              style: TextStyle(color: colors.onSurfaceVariant),
+                            ),
+                            const SizedBox(height: 24),
+                            if (!_isLogin) ...[
+                              TextField(
+                                controller: _nameController,
+                                textCapitalization: TextCapitalization.words,
+                                decoration: const InputDecoration(
+                                  labelText: 'Jméno',
+                                  hintText: 'např. Jan Novák',
+                                  prefixIcon: Icon(Icons.person_outline),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                            ],
+                            TextField(
+                              controller: _emailController,
+                              keyboardType: TextInputType.emailAddress,
+                              decoration: const InputDecoration(
+                                labelText: 'Email',
+                                prefixIcon: Icon(Icons.mail_outline),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            TextField(
+                              controller: _passwordController,
+                              obscureText: true,
+                              decoration: const InputDecoration(
+                                labelText: 'Heslo',
+                                prefixIcon: Icon(Icons.lock_outline),
+                              ),
+                            ),
+                            if (_isLogin)
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: TextButton(
+                                  onPressed: _loading ? null : _forgotPassword,
+                                  child: const Text('Zapomenuté heslo?'),
+                                ),
+                              ),
+                            if (_error.isNotEmpty) ...[
+                              const SizedBox(height: 12),
+                              Text(
+                                _error,
+                                style: TextStyle(color: colors.error),
+                              ),
+                            ],
+                            const SizedBox(height: 20),
+                            if (_loading)
+                              const Center(child: CircularProgressIndicator())
+                            else ...[
+                              FilledButton(
+                                onPressed: _submit,
+                                style: FilledButton.styleFrom(
+                                  minimumSize: const Size.fromHeight(52),
+                                ),
+                                child: Text(
+                                  _isLogin ? 'Přihlásit se' : 'Registrovat',
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              Row(
+                                children: [
+                                  const Expanded(child: Divider()),
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                    ),
+                                    child: Text(
+                                      'nebo',
+                                      style: TextStyle(
+                                        color: colors.onSurfaceVariant,
+                                      ),
+                                    ),
+                                  ),
+                                  const Expanded(child: Divider()),
+                                ],
+                              ),
+                              const SizedBox(height: 16),
+                              OutlinedButton.icon(
+                                onPressed: _googleSignIn,
+                                icon: const Icon(Icons.g_mobiledata, size: 28),
+                                label: const Text('Přihlásit přes Google'),
+                                style: OutlinedButton.styleFrom(
+                                  minimumSize: const Size.fromHeight(52),
+                                  foregroundColor: colors.onSurface,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextButton(
+                      onPressed: () => setState(() {
+                        _isLogin = !_isLogin;
+                        _error = '';
+                      }),
+                      style: TextButton.styleFrom(
+                        foregroundColor: Colors.white,
+                      ),
+                      child: Text(_isLogin
+                          ? 'Nemáš účet? Zaregistruj se'
+                          : 'Máš účet? Přihlas se'),
+                    ),
+                  ],
+                ),
               ),
-            ],
+            ),
           ),
         ),
       ),
@@ -237,13 +308,15 @@ class _ForgotPasswordDialogState extends State<ForgotPasswordDialog> {
             autocorrect: false,
             decoration: const InputDecoration(
               labelText: 'Email',
-              border: OutlineInputBorder(),
-              prefixIcon: Icon(Icons.email),
+              prefixIcon: Icon(Icons.mail_outline),
             ),
           ),
           if (_error.isNotEmpty) ...[
             const SizedBox(height: 12),
-            Text(_error, style: const TextStyle(color: Colors.red)),
+            Text(
+              _error,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
           ],
         ],
       ),

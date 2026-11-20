@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../services/run_service.dart';
 import '../services/team_service.dart';
 import '../services/training_service.dart';
+import '../theme/app_theme.dart';
 import '../utils/date_format.dart';
 import '../utils/error_text.dart';
 import '../widgets/common.dart';
@@ -131,34 +132,46 @@ class _TrainingDetailScreenState extends State<TrainingDetailScreen> {
       children: [
         Row(
           children: [
-            CircleAvatar(
-              backgroundColor: trainingColor(training),
-              child: Icon(trainingTypeIcon(training.type), color: Colors.white),
+            IconBadge(
+              icon: trainingTypeIcon(training.type),
+              size: 52,
+              color: trainingColor(training),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 14),
             Expanded(
               child: Text(
                 training.title,
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: Theme.of(context).textTheme.headlineSmall,
               ),
             ),
             TrainingKindChip(training: training),
           ],
         ),
-        const SizedBox(height: 8),
-        _InfoTile(icon: Icons.event, text: formatDate(training.startAt)),
-        _InfoTile(
-          icon: Icons.schedule,
-          text: formatTimeRange(training.startAt, training.endAt),
+        const SizedBox(height: 16),
+        // Údaje o tréninku v jedné kartě.
+        Card(
+          margin: EdgeInsets.zero,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: Column(
+              children: [
+                _InfoTile(icon: Icons.event, text: formatDate(training.startAt)),
+                _InfoTile(
+                  icon: Icons.schedule,
+                  text: formatTimeRange(training.startAt, training.endAt),
+                ),
+                _InfoTile(
+                  icon: trainingTypeIcon(training.type),
+                  text: training.type.label,
+                ),
+                if (place != null) _InfoTile(icon: Icons.place, text: place),
+                if (description != null)
+                  _InfoTile(icon: Icons.notes, text: description),
+              ],
+            ),
+          ),
         ),
-        _InfoTile(icon: trainingTypeIcon(training.type), text: training.type.label),
-        if (place != null) _InfoTile(icon: Icons.place, text: place),
-        if (description != null)
-          _InfoTile(icon: Icons.notes, text: description),
-        const Divider(height: 32),
+        const SizedBox(height: 20),
         if (members == null) ...[
           TrainingPlayerActions(teamId: widget.teamId, training: training),
           if (_isRun(training)) _buildMyRun(),
@@ -299,10 +312,7 @@ class _TrainingDetailScreenState extends State<TrainingDetailScreen> {
         for (final uid in assigned)
           ListTile(
             contentPadding: EdgeInsets.zero,
-            leading: const CircleAvatar(
-              backgroundColor: Colors.teal,
-              child: Icon(Icons.directions_run, color: Colors.white),
-            ),
+            leading: const RoleAvatar(isCoach: false),
             title: Text(players[uid]!),
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
@@ -328,7 +338,11 @@ class _InfoTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListTile(
       contentPadding: EdgeInsets.zero,
-      leading: Icon(icon, color: Colors.indigo),
+      leading: IconBadge(
+        icon: icon,
+        size: 36,
+        color: Theme.of(context).colorScheme.primary,
+      ),
       title: Text(text),
     );
   }
@@ -353,9 +367,14 @@ class _NameSection extends StatelessWidget {
       children: [
         SectionTitle(title),
         if (names.isEmpty)
-          const Padding(
-            padding: EdgeInsets.only(bottom: 8),
-            child: Text('Nikdo', style: TextStyle(color: Colors.black38)),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text(
+              'Nikdo',
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
           ),
         for (final name in names)
           ListTile(

@@ -48,14 +48,16 @@ class _RunDetailScreenState extends State<RunDetailScreen> {
           }
           final run = snapshot.data;
           if (run == null) {
-            return const Center(
+            return Center(
               child: Padding(
-                padding: EdgeInsets.all(32),
+                padding: const EdgeInsets.all(32),
                 child: Text(
                   'Hráč zatím nemá záznam běhu.\n'
                   'Trénink mohl splnit i ručně, bez záznamu z telefonu.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.black54),
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
                 ),
               ),
             );
@@ -66,7 +68,13 @@ class _RunDetailScreenState extends State<RunDetailScreen> {
               SizedBox(height: 300, child: RunMap(run: run)),
               Padding(
                 padding: const EdgeInsets.all(16),
-                child: RunStats(run: run),
+                child: Card(
+                  margin: EdgeInsets.zero,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: RunStats(run: run),
+                  ),
+                ),
               ),
             ],
           );

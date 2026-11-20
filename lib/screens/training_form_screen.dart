@@ -192,7 +192,9 @@ class _TrainingFormScreenState extends State<TrainingFormScreen> {
                     'Zápas celého týmu – hráči odpoví BUDU / NEBUDU.',
                 },
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.black54),
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
               ),
               const SizedBox(height: 16),
               TextField(
@@ -203,7 +205,6 @@ class _TrainingFormScreenState extends State<TrainingFormScreen> {
                   hintText: _isMatch
                       ? 'např. SFC – Sparta B'
                       : 'např. Trénink na hřišti',
-                  border: const OutlineInputBorder(),
                   prefixIcon: const Icon(Icons.title),
                 ),
               ),
@@ -266,7 +267,6 @@ class _TrainingFormScreenState extends State<TrainingFormScreen> {
                   decoration: const InputDecoration(
                     labelText: 'Místo',
                     hintText: 'např. Hřiště u školy',
-                    border: OutlineInputBorder(),
                     prefixIcon: Icon(Icons.place),
                   ),
                 ),
@@ -281,7 +281,6 @@ class _TrainingFormScreenState extends State<TrainingFormScreen> {
                   labelText: 'Popis / zadání',
                   hintText: 'např. 5 km volným tempem',
                   alignLabelWithHint: true,
-                  border: OutlineInputBorder(),
                 ),
               ),
               if (!_isTeam) ...[
@@ -293,17 +292,18 @@ class _TrainingFormScreenState extends State<TrainingFormScreen> {
               ],
               if (_error.isNotEmpty) ...[
                 const SizedBox(height: 12),
-                Text(_error, style: const TextStyle(color: Colors.red)),
+                Text(
+                  _error,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
               ],
               const SizedBox(height: 24),
               _loading
                   ? const Center(child: CircularProgressIndicator())
-                  : ElevatedButton(
+                  : FilledButton(
                       onPressed: () => _save(players),
-                      style: ElevatedButton.styleFrom(
-                        minimumSize: const Size(double.infinity, 50),
-                        backgroundColor: Colors.indigo,
-                        foregroundColor: Colors.white,
+                      style: FilledButton.styleFrom(
+                        minimumSize: const Size.fromHeight(52),
                       ),
                       child: Text(isEdit ? 'Uložit změny' : 'Přidat $noun'),
                     ),
@@ -316,9 +316,11 @@ class _TrainingFormScreenState extends State<TrainingFormScreen> {
 
   Widget _buildPlayerPicker(Map<String, String> players) {
     if (players.isEmpty) {
-      return const Text(
+      return Text(
         'V týmu zatím nejsou žádní hráči. Pozvi je pomocí kódu týmu.',
-        style: TextStyle(color: Colors.black54),
+        style: TextStyle(
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
       );
     }
 
@@ -327,7 +329,9 @@ class _TrainingFormScreenState extends State<TrainingFormScreen> {
     final selectedCount = players.keys.where(_selectedPlayers.contains).length;
     final allSelected = selectedCount == players.length;
 
-    return Card.outlined(
+    return Card(
+      margin: EdgeInsets.zero,
+      clipBehavior: Clip.antiAlias,
       child: Column(
         children: [
           CheckboxListTile(
@@ -390,11 +394,10 @@ class _PickerField extends StatelessWidget {
     final onClear = this.onClear;
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(4),
+      borderRadius: BorderRadius.circular(16),
       child: InputDecorator(
         decoration: InputDecoration(
           labelText: label,
-          border: const OutlineInputBorder(),
           prefixIcon: Icon(icon),
           suffixIcon: onClear == null
               ? null

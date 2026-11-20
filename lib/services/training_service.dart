@@ -159,27 +159,21 @@ class TrainingService {
   CollectionReference<Map<String, dynamic>> _trainings(String teamId) =>
       _db.collection('teams').doc(teamId).collection('trainings');
 
-  /// Tréninky týmu pro kalendář – nadcházející (od dnešní půlnoci), nebo
-  /// proběhlé ([past]). Vždy seřazené podle začátku vzestupně.
-  Stream<List<Training>> streamTrainings(
-    String teamId, {
-    required bool isCoach,
-    required bool past,
-  }) {
+  /// Nadcházející akce týmu (od dnešní půlnoci) seřazené podle začátku –
+  /// nejbližší akce a další akce na záložce Přehled.
+  Stream<List<Training>> streamUpcoming(String teamId, {required bool isCoach}) {
     final now = DateTime.now();
     final todayStart =
         Timestamp.fromDate(DateTime(now.year, now.month, now.day));
     return _streamVisible(
       teamId,
       isCoach,
-      (query) => past
-          ? query.where('startAt', isLessThan: todayStart)
-          : query.where('startAt', isGreaterThanOrEqualTo: todayStart),
+      (query) => query.where('startAt', isGreaterThanOrEqualTo: todayStart),
     );
   }
 
   /// Tréninky týmu se začátkem v rozmezí [from] (včetně) až [to] (bez) –
-  /// týdenní kalendář v detailu týmu.
+  /// týden v kalendáři a čísla „Tento týden“ na Přehledu.
   Stream<List<Training>> streamTrainingsBetween(
     String teamId, {
     required bool isCoach,

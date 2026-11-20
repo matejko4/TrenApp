@@ -1,6 +1,6 @@
 {
-    "name": "tren_app",
-    "short_name": "tren_app",
+    "name": "TrenApp",
+    "short_name": "TrenApp",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

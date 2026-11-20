@@ -1,15 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../services/team_service.dart';
+import '../theme/app_theme.dart';
 import '../utils/error_text.dart';
 import '../widgets/account_actions.dart';
 
-/// Zobrazí se po přihlášení, pokud uživatel není v žádném týmu, a také
-/// když existující uživatel chce vytvořit/připojit se k dalšímu týmu.
-///
-/// Když je tato obrazovka nasazená jako výsledek RootGate (uživatel bez
-/// týmu), po úspěšném vytvoření/připojení se RootGate sám přepne na
-/// HomeScreen díky streamu z Firestore – proto se odtud nikam nenaviguje,
-/// pouze se zkusí zavřít, pokud byla otevřená přes Navigator.push.
+/// Založení nového týmu, nebo připojení k týmu kódem. Otevírá se z Domů
+/// tlačítkem „Přidat tým“ a po úspěchu se zavře – Domů nový tým ukáže
+/// sám díky streamu z Firestore.
 class TeamSetupScreen extends StatefulWidget {
   const TeamSetupScreen({super.key});
 
@@ -56,102 +54,130 @@ class _TeamSetupScreenState extends State<TeamSetupScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final canPop = Navigator.of(context).canPop();
-
     return Scaffold(
-      backgroundColor: Colors.indigo.shade50,
-      // Otevřená z Home (canPop) má šipku zpět, jako první obrazovka
-      // uživatele bez týmu (z RootGate) ji nemá.
+      // Obsah je i pod průhlednou horní lištou, aby přechod šel až nahoru.
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: Text(canPop ? 'Přidat tým' : 'TrenApp'),
+        title: const Text('Přidat tým'),
+        backgroundColor: Colors.transparent,
+        foregroundColor: Colors.white,
+        titleTextStyle: Theme.of(context)
+            .textTheme
+            .titleLarge
+            ?.copyWith(color: Colors.white),
+        systemOverlayStyle: SystemUiOverlayStyle.light,
         actions: const [LogoutButton()],
       ),
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(32),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.groups, size: 72, color: Colors.indigo),
-                const SizedBox(height: 16),
-                const Text(
-                  'Zatím nejsi v žádném týmu',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.indigo,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Vytvoř nový tým, nebo se připoj kódem, který ti dal trenér.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.black54),
-                ),
-                const SizedBox(height: 32),
-                SegmentedButton<bool>(
-                  segments: const [
-                    ButtonSegment(
-                      value: true,
-                      label: Text('Vytvořit tým'),
-                      icon: Icon(Icons.add_business),
+      body: GradientBackground(
+        child: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 440),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const IconBadge(icon: Icons.groups, size: 76),
+                    const SizedBox(height: 20),
+                    Text(
+                      'Založ tým, nebo se připoj',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 26,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.5,
+                        color: Colors.white,
+                      ),
                     ),
-                    ButtonSegment(
-                      value: false,
-                      label: Text('Připojit se'),
-                      icon: Icon(Icons.key),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Vytvoř nový tým, nebo se připoj kódem, který ti dal trenér.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.85),
+                      ),
                     ),
-                  ],
-                  selected: {_isCreateMode},
-                  onSelectionChanged: (selection) => setState(() {
-                    _isCreateMode = selection.first;
-                    _error = '';
-                  }),
-                ),
-                const SizedBox(height: 24),
-                if (_isCreateMode)
-                  TextField(
-                    controller: _nameController,
-                    textCapitalization: TextCapitalization.words,
-                    decoration: const InputDecoration(
-                      labelText: 'Název týmu',
-                      hintText: 'např. AC Sparta Praha',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.shield_outlined),
-                    ),
-                  )
-                else
-                  TextField(
-                    controller: _codeController,
-                    textCapitalization: TextCapitalization.characters,
-                    decoration: const InputDecoration(
-                      labelText: 'Kód týmu',
-                      hintText: 'např. AB12CD34',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.vpn_key_outlined),
-                    ),
-                  ),
-                if (_error.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  Text(_error, style: const TextStyle(color: Colors.red)),
-                ],
-                const SizedBox(height: 24),
-                _loading
-                    ? const CircularProgressIndicator()
-                    : ElevatedButton(
-                        onPressed: _submit,
-                        style: ElevatedButton.styleFrom(
-                          minimumSize: const Size(double.infinity, 50),
-                          backgroundColor: Colors.indigo,
-                          foregroundColor: Colors.white,
-                        ),
-                        child: Text(
-                          _isCreateMode ? 'Vytvořit tým' : 'Připojit se k týmu',
+                    const SizedBox(height: 28),
+                    Card(
+                      elevation: 8,
+                      shadowColor: Colors.black38,
+                      child: Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            SegmentedButton<bool>(
+                              segments: const [
+                                ButtonSegment(
+                                  value: true,
+                                  label: Text('Vytvořit tým'),
+                                  icon: Icon(Icons.add_business),
+                                ),
+                                ButtonSegment(
+                                  value: false,
+                                  label: Text('Připojit se'),
+                                  icon: Icon(Icons.key),
+                                ),
+                              ],
+                              selected: {_isCreateMode},
+                              onSelectionChanged: (selection) => setState(() {
+                                _isCreateMode = selection.first;
+                                _error = '';
+                              }),
+                            ),
+                            const SizedBox(height: 20),
+                            if (_isCreateMode)
+                              TextField(
+                                controller: _nameController,
+                                textCapitalization: TextCapitalization.words,
+                                decoration: const InputDecoration(
+                                  labelText: 'Název týmu',
+                                  hintText: 'např. AC Sparta Praha',
+                                  prefixIcon: Icon(Icons.shield_outlined),
+                                ),
+                              )
+                            else
+                              TextField(
+                                controller: _codeController,
+                                textCapitalization: TextCapitalization.characters,
+                                decoration: const InputDecoration(
+                                  labelText: 'Kód týmu',
+                                  hintText: 'např. AB12CD34',
+                                  prefixIcon: Icon(Icons.vpn_key_outlined),
+                                ),
+                              ),
+                            if (_error.isNotEmpty) ...[
+                              const SizedBox(height: 12),
+                              Text(
+                                _error,
+                                style: TextStyle(
+                                  color: Theme.of(context).colorScheme.error,
+                                ),
+                              ),
+                            ],
+                            const SizedBox(height: 20),
+                            if (_loading)
+                              const Center(child: CircularProgressIndicator())
+                            else
+                              FilledButton(
+                                onPressed: _submit,
+                                style: FilledButton.styleFrom(
+                                  minimumSize: const Size.fromHeight(52),
+                                ),
+                                child: Text(
+                                  _isCreateMode
+                                      ? 'Vytvořit tým'
+                                      : 'Připojit se k týmu',
+                                ),
+                              ),
+                          ],
                         ),
                       ),
-              ],
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
         ),

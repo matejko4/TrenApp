@@ -12,7 +12,7 @@ enum AppTab { home, notifications, account }
 /// Domů zavře všechny otevřené obrazovky až po úvodní. Oznámení a Účet se
 /// otevírají vždy přímo nad úvodní obrazovkou, takže se při přepínání
 /// obrazovky nehromadí a tlačítko Zpět z nich vede na Domů. Kalendář
-/// a další obrazovky týmu se otevírají z detailu týmu, ne z lišty.
+/// a soupiska týmu jsou záložky v detailu týmu, ne v liště.
 class AppBottomBar extends StatelessWidget {
   const AppBottomBar({super.key, required this.current});
 

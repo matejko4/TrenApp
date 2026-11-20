@@ -21,6 +21,7 @@ Uživatel bude moci:
 - vytvořit účet pomocí jména, e-mailu a hesla,
 - přihlásit se e-mailem nebo účtem Google (jméno se převezme z Google účtu),
 - změnit své jméno, které se ostatním zobrazuje místo e-mailu,
+- přepnout vzhled aplikace na světlý nebo tmavý režim (nebo podle nastavení telefonu),
 - založit nový tým (stane se jeho trenérem),
 - připojit se k existujícímu týmu pomocí kódu (stane se hráčem),
 - odhlásit se.
@@ -111,6 +112,14 @@ Typy tréninků bude možné v budoucnu rozšířit podle potřeby.
 
 Všechny tréninky se hráčům zobrazí v kalendáři – společné tréninky celého týmu i individuální tréninky zadané přímo jim. Hráč tak má na jednom místě přehled, co ho v jaký den čeká.
 
+Detail týmu má tři záložky:
+
+- **Přehled** – hlavička týmu (role, počet hráčů a trenérů, u trenéra pozvánkový kód), nejbližší akce s odpočtem („za 2 h 15 min“) a tlačítky BUDU / NEBUDU, tři čísla za tento týden (počet akcí, u trenéra potvrzená účast v %, u hráče počet odpovědí, a splněné individuální tréninky) a další nejbližší akce.
+- **Kalendář** – týdenní pás Po–Ne s barevnými tečkami za akce (indigo = společný trénink, zelenomodrá = individuální, oranžová = zápas), filtr podle druhu akce a časová osa celého týdne. Šipkami se přepíná týden (i do minulosti), klepnutí na den posune časovou osu na ten den.
+- **Tým** – soupiska rozdělená na trenéry a hráče a u trenéra karta s pozvánkovým kódem.
+
+Trenér přidává tréninky a zápasy tlačítkem **Přidat** na Přehledu a v Kalendáři.
+
 ### Společný trénink – docházka
 
 U společného tréninku hráč odpovídá, jestli přijde:
@@ -169,6 +178,11 @@ Projekt je vytvořen pomocí těchto technologií:
 - geolocator – poloha zařízení a služba na popředí pro záznam se zhasnutým displejem
 - flutter_map + latlong2 – mapa trasy běhu s podkladem OpenStreetMap (bez API klíče)
 
+### Vzhled
+
+- Material Design 3 – vlastní světlé a tmavé téma v jednom souboru (`lib/theme/app_theme.dart`)
+- shared_preferences – zapamatování zvoleného režimu (světlý / tmavý / podle systému) v telefonu
+
 ### Další technologie
 
 - Firebase CLI
@@ -199,14 +213,16 @@ TrenApp/
 │   │   ├── name_setup_screen.dart   – zadání jména po prvním přihlášení
 │   │   ├── team_setup_screen.dart   – založení týmu / připojení kódem
 │   │   ├── home_screen.dart         – přehled týmů uživatele
-│   │   ├── team_detail_screen.dart  – detail týmu a správa členů
-│   │   ├── team_calendar_screen.dart – kalendář tréninků týmu
+│   │   ├── team_detail_screen.dart  – detail týmu se záložkami Přehled / Kalendář / Tým
+│   │   ├── team_overview_tab.dart   – záložka Přehled (nejbližší akce, čísla za týden)
+│   │   ├── team_calendar_tab.dart   – záložka Kalendář (týdenní pás a časová osa)
+│   │   ├── team_roster_tab.dart     – záložka Tým (soupiska a správa členů)
 │   │   ├── training_detail_screen.dart – detail tréninku a přehled odpovědí
 │   │   ├── training_form_screen.dart – zadání / úprava tréninku (trenér)
 │   │   ├── run_screen.dart          – záznam běhu přes GPS
 │   │   ├── run_detail_screen.dart   – mapa trasy a údaje o běhu
 │   │   ├── notifications_screen.dart – oznámení (připravuje se)
-│   │   └── account_settings_screen.dart – nastavení účtu (jméno, heslo)
+│   │   └── account_settings_screen.dart – nastavení účtu (jméno, heslo, vzhled)
 │   │
 │   ├── services/
 │   │   ├── auth_service.dart        – přihlášení, registrace, správa účtu
@@ -215,14 +231,19 @@ TrenApp/
 │   │   ├── run_service.dart         – běh: oprávnění k poloze, GPS, uložení
 │   │   └── run_tracker.dart         – výpočet času, vzdálenosti a trasy běhu
 │   │
+│   ├── theme/
+│   │   └── app_theme.dart           – barvy, světlé a tmavé téma, volba režimu
+│   │
 │   ├── utils/
-│   │   ├── date_format.dart         – české formátování data a času
+│   │   ├── date_format.dart         – české formátování data a času, odpočet do akce
+│   │   ├── plural.dart              – české tvary slov podle počtu (1 hráč, 2 hráči, 5 hráčů)
 │   │   └── run_format.dart          – formátování času, vzdálenosti a tempa běhu
 │   │
 │   └── widgets/
 │       ├── account_actions.dart     – tlačítko odhlášení v horní liště
 │       ├── app_bottom_bar.dart      – spodní navigační lišta (Domů, Oznámení, Účet)
 │       ├── training_widgets.dart    – karta tréninku, BUDU / NEBUDU, stavy
+│       ├── week_strip.dart          – týdenní pás s tečkami za akce
 │       ├── run_widgets.dart         – mapa trasy a údaje o běhu
 │       └── coming_soon.dart         – zástupný obsah „Připravujeme“
 │
@@ -371,8 +392,7 @@ Po přihlášení je uživatel přesměrován podle svého stavu:
 
 - nepřihlášený uživatel → přihlašovací obrazovka,
 - přihlášený uživatel bez jména → zadání jména,
-- přihlášený uživatel bez týmu → založení týmu / připojení k týmu,
-- přihlášený uživatel s alespoň jedním týmem → přehled týmů.
+- přihlášený uživatel → přehled týmů (uživatel bez týmu tam vidí výzvu a tlačítkem **Přidat tým** založí tým nebo se připojí kódem).
 
 Hlavní obrazovka může dále zobrazovat například:
 
@@ -561,7 +581,7 @@ npm install
 npm test
 ```
 
-**Testy aplikace** (`test/`) ověřují logiku bez připojení k Firebase: formátování data a času, stavy tréninku (naplánovaný / splněný / nesplněný, do kdy jde odpovídat) a souhrn odpovědí, který vidí trenér v kalendáři, a záznam běhu – výpočet aktivního času bez pauz, vzdálenosti po úsecích, zahazování nepřesných bodů GPS a formátování času, vzdálenosti a tempa.
+**Testy aplikace** (`test/`) ověřují logiku bez připojení k Firebase: formátování data a času, stavy tréninku (naplánovaný / splněný / nesplněný, do kdy jde odpovídat) a souhrn odpovědí, který vidí trenér v kalendáři, a záznam běhu – výpočet aktivního času bez pauz, vzdálenosti po úsecích, zahazování nepřesných bodů GPS a formátování času, vzdálenosti a tempa. Dále týdenní pás v kalendáři (tečky za akce, přepínání týdnů), odpočet do akce („za 2 h 15 min“) a české tvary slov podle počtu („1 hráč / 2 hráči / 5 hráčů“).
 
 ```
 flutter test
@@ -593,7 +613,6 @@ Pokud bude dostatek času, je možné projekt rozšířit o:
 - profilové fotky,
 - export tréninků do GPX / CSV,
 - propojení s chytrými hodinkami,
-- tmavý režim,
 - více jazyků.
 
 Rozšíření budou implementována pouze v případě, že budou dokončeny všechny základní funkce.

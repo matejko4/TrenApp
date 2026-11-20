@@ -424,7 +424,7 @@ describe('Tréninky – kdo co vidí', () => {
     await assertFails(getDoc(doc(trainings('cizi'), 'spolecny')));
   });
 
-  it('dotazy hráče z kalendáře projdou (TrainingService.streamTrainings)', async () => {
+  it('dotazy hráče na nadcházející akce projdou (TrainingService.streamUpcoming)', async () => {
     const today = Timestamp.fromDate(new Date(new Date().setHours(0, 0, 0, 0)));
     await assertSucceeds(getDocs(query(
       trainings('hrac'), where('kind', '==', 'team'), where('startAt', '>=', today), orderBy('startAt'),

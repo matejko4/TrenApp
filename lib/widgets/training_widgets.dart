@@ -2,7 +2,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../screens/run_screen.dart';
+import '../screens/training_detail_screen.dart';
 import '../services/training_service.dart';
+import '../theme/app_theme.dart';
 import '../utils/date_format.dart';
 import '../utils/error_text.dart';
 import 'common.dart';
@@ -19,10 +21,30 @@ IconData trainingTypeIcon(TrainingType type) => switch (type) {
     };
 
 /// Barva akce: společný trénink indigo, individuální zelenomodrá, zápas
-/// oranžová. Používá ji ikona, štítek i tečka v týdenním kalendáři.
+/// oranžová (viz AppColors). Používá ji ikona, štítek i tečka v týdenním
+/// kalendáři.
 Color trainingColor(Training training) {
-  if (training.isMatch) return Colors.orange.shade800;
-  return training.isTeam ? Colors.indigo : Colors.teal;
+  if (training.isMatch) return AppColors.match;
+  return training.isTeam ? AppColors.team : AppColors.individual;
+}
+
+/// Otevře detail akce (tréninku nebo zápasu).
+void openTrainingDetail(
+  BuildContext context, {
+  required String teamId,
+  required Training training,
+  required bool isCoach,
+}) {
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => TrainingDetailScreen(
+        teamId: teamId,
+        trainingId: training.id,
+        isCoach: isCoach,
+      ),
+    ),
+  );
 }
 
 /// Štítek druhu akce – „Společný“, „Individuální“, nebo „Zápas“.
@@ -69,18 +91,19 @@ class TrainingKindChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = trainingColor(training);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(12),
+        color: color.withValues(alpha: isDark ? 0.22 : 0.12),
+        borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
         trainingKindLabel(training),
         style: TextStyle(
-          color: color,
+          color: AppColors.readable(context, color),
           fontSize: 12,
-          fontWeight: FontWeight.w600,
+          fontWeight: FontWeight.w700,
         ),
       ),
     );
@@ -91,27 +114,30 @@ class TrainingKindChip extends StatelessWidget {
 TrainingStatusLabel individualStatusLabel(IndividualStatus status) =>
     switch (status) {
       IndividualStatus.planned => const TrainingStatusLabel(
-          icon: Icons.schedule, color: Colors.blueGrey, label: 'Naplánovaný'),
+          icon: Icons.schedule, color: AppColors.planned, label: 'Naplánovaný'),
       IndividualStatus.done => const TrainingStatusLabel(
-          icon: Icons.check_circle, color: Colors.green, label: 'Splněný'),
+          icon: Icons.check_circle, color: AppColors.success, label: 'Splněný'),
       IndividualStatus.missed => const TrainingStatusLabel(
-          icon: Icons.cancel, color: Colors.red, label: 'Nesplněný'),
+          icon: Icons.cancel, color: AppColors.danger, label: 'Nesplněný'),
     };
 
 /// Odpověď hráče na společný trénink.
 TrainingStatusLabel teamResponseLabel(TrainingResponse? response) =>
     switch (response) {
       TrainingResponse.yes => const TrainingStatusLabel(
-          icon: Icons.check_circle, color: Colors.green, label: 'Budu'),
+          icon: Icons.check_circle, color: AppColors.success, label: 'Budu'),
       TrainingResponse.no => const TrainingStatusLabel(
-          icon: Icons.cancel, color: Colors.red, label: 'Nebudu'),
+          icon: Icons.cancel, color: AppColors.danger, label: 'Nebudu'),
       _ => const TrainingStatusLabel(
-          icon: Icons.help_outline, color: Colors.grey, label: 'Bez odpovědi'),
+          icon: Icons.help_outline, color: AppColors.neutral, label: 'Bez odpovědi'),
     };
 
 /// Karta tréninku v kalendáři. Hráč na ní rovnou odpovídá / plní trénink,
 /// trenér vidí souhrn odpovědí. [players] (uid -> jméno hráčů týmu) je
 /// potřeba jen pro trenérský souhrn.
+///
+/// [compact] je užší verze pro časovou osu kalendáře – čas je vedle karty,
+/// takže se v kartě neopakuje, a štítek druhu akce je pod názvem.
 class TrainingCard extends StatelessWidget {
   const TrainingCard({
     super.key,
@@ -120,6 +146,7 @@ class TrainingCard extends StatelessWidget {
     required this.isCoach,
     this.players = const {},
     this.onTap,
+    this.compact = false,
   });
 
   final String teamId;
@@ -127,27 +154,31 @@ class TrainingCard extends StatelessWidget {
   final bool isCoach;
   final Map<String, String> players;
   final VoidCallback? onTap;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final details = [
+      if (!compact) formatTimeRange(training.startAt, training.endAt),
+      ?training.place,
+    ].join(' · ');
+
     return Card(
-      elevation: 1,
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(14),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
-                  CircleAvatar(
-                    backgroundColor: trainingColor(training),
-                    child: Icon(
-                      trainingTypeIcon(training.type),
-                      color: Colors.white,
-                    ),
+                  IconBadge(
+                    icon: trainingTypeIcon(training.type),
+                    size: compact ? 38 : 44,
+                    color: trainingColor(training),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -157,24 +188,26 @@ class TrainingCard extends StatelessWidget {
                         Text(
                           training.title,
                           style: const TextStyle(
-                            fontWeight: FontWeight.bold,
+                            fontWeight: FontWeight.w700,
                             fontSize: 16,
                           ),
                         ),
-                        Text(
-                          [
-                            formatTimeRange(training.startAt, training.endAt),
-                            ?training.place,
-                          ].join(' · '),
-                          style: const TextStyle(color: Colors.black54),
-                        ),
+                        if (details.isNotEmpty)
+                          Text(
+                            details,
+                            style: TextStyle(color: colors.onSurfaceVariant),
+                          ),
+                        if (compact) ...[
+                          const SizedBox(height: 6),
+                          TrainingKindChip(training: training),
+                        ],
                       ],
                     ),
                   ),
-                  TrainingKindChip(training: training),
+                  if (!compact) TrainingKindChip(training: training),
                 ],
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
               if (isCoach)
                 TrainingCoachSummary(training: training, players: players)
               else
@@ -213,12 +246,16 @@ class TrainingCoachSummary extends StatelessWidget {
         runSpacing: 4,
         children: [
           TrainingStatusLabel(
-              icon: Icons.check_circle, color: Colors.green, label: 'Přijde $yes'),
+              icon: Icons.check_circle,
+              color: AppColors.success,
+              label: 'Přijde $yes'),
           TrainingStatusLabel(
-              icon: Icons.cancel, color: Colors.red, label: 'Nepřijde $no'),
+              icon: Icons.cancel,
+              color: AppColors.danger,
+              label: 'Nepřijde $no'),
           TrainingStatusLabel(
             icon: Icons.help_outline,
-            color: Colors.grey,
+            color: AppColors.neutral,
             label: 'Bez odpovědi ${players.length - yes - no}',
           ),
         ],
@@ -241,7 +278,7 @@ class TrainingCoachSummary extends StatelessWidget {
         const SizedBox(height: 4),
         TrainingStatusLabel(
           icon: Icons.check_circle,
-          color: Colors.green,
+          color: AppColors.success,
           label: 'Splněno $done / ${assigned.length}',
         ),
       ],
@@ -304,7 +341,7 @@ class TrainingPlayerActions extends StatelessWidget {
           child: _ChoiceButton(
             label: 'BUDU',
             icon: Icons.check,
-            color: Colors.green,
+            color: AppColors.success,
             selected: response == TrainingResponse.yes,
             onPressed: () => _respond(context, TrainingResponse.yes),
           ),
@@ -314,7 +351,7 @@ class TrainingPlayerActions extends StatelessWidget {
           child: _ChoiceButton(
             label: 'NEBUDU',
             icon: Icons.close,
-            color: Colors.red,
+            color: AppColors.danger,
             selected: response == TrainingResponse.no,
             onPressed: () => _respond(context, TrainingResponse.no),
           ),
@@ -399,14 +436,22 @@ class _ChoiceButton extends StatelessWidget {
   Widget build(BuildContext context) {
     if (selected) {
       return FilledButton.icon(
-        style: FilledButton.styleFrom(backgroundColor: color),
+        // Bílý text – v tmavém režimu by výchozí barva textu na zelené
+        // a červené nebyla čitelná.
+        style: FilledButton.styleFrom(
+          backgroundColor: color,
+          foregroundColor: Colors.white,
+        ),
         icon: Icon(icon),
         label: Text(label),
         onPressed: onPressed,
       );
     }
     return OutlinedButton.icon(
-      style: OutlinedButton.styleFrom(foregroundColor: color),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: color,
+        side: BorderSide(color: color.withValues(alpha: 0.5), width: 1.5),
+      ),
       icon: Icon(icon),
       label: Text(label),
       onPressed: onPressed,

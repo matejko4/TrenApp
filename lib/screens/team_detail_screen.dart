@@ -3,25 +3,28 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../services/team_service.dart';
-import '../services/training_service.dart';
-import '../utils/date_format.dart';
+import '../theme/app_theme.dart';
 import '../utils/error_text.dart';
+import '../utils/plural.dart';
 import '../widgets/account_actions.dart';
 import '../widgets/app_bottom_bar.dart';
 import '../widgets/common.dart';
-import '../widgets/training_widgets.dart';
-import '../widgets/week_calendar.dart';
-import 'team_calendar_screen.dart';
-import 'training_detail_screen.dart';
+import 'team_calendar_tab.dart';
+import 'team_overview_tab.dart';
+import 'team_roster_tab.dart';
+import 'training_form_screen.dart';
 
-/// Detail týmu – vlevo týdenní kalendář s tečkami za tréninky, vpravo
-/// soupiska rozdělená na trenéry a hráče, pod nimi nejbližší trénink.
+/// Detail týmu – nahoře přepínač tří záložek:
+///  - Přehled  – barevná hlavička (role, počet členů, kód týmu), nejbližší
+///               akce, čísla za tento týden a další akce
+///               (team_overview_tab.dart),
+///  - Kalendář – týdenní pás a časová osa akcí (team_calendar_tab.dart),
+///  - Tým      – soupiska a správa členů (team_roster_tab.dart).
 ///
-/// Trenér zde může odebírat hráče. Správce týmu navíc mění role (přidává
-/// a odebírá trenéry), předává vedení týmu a může tým celý zrušit.
+/// Trenér přidává akce plovoucím tlačítkem „Přidat“ na Přehledu
+/// a v Kalendáři. Správce týmu může tým zrušit v menu ⋮ vpravo nahoře.
 class TeamDetailScreen extends StatefulWidget {
   const TeamDetailScreen({
     super.key,
@@ -40,24 +43,25 @@ class TeamDetailScreen extends StatefulWidget {
   State<TeamDetailScreen> createState() => _TeamDetailScreenState();
 }
 
-class _TeamDetailScreenState extends State<TeamDetailScreen> {
+// SingleTickerProviderStateMixin dodává „hodiny“ pro animaci přepínání
+// záložek (TabController ji potřebuje).
+class _TeamDetailScreenState extends State<TeamDetailScreen>
+    with SingleTickerProviderStateMixin {
   final _teamService = TeamService();
-  final _trainingService = TrainingService();
+  late final TabController _tabs = TabController(length: 3, vsync: this);
   bool _deleting = false;
   String? _ownerUid;
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _teamSub;
-  final _rosterScroll = ScrollController();
 
-  late final Stream<QuerySnapshot<Map<String, dynamic>>> _members =
-      _teamService.streamTeamMembers(widget.teamId);
-  late final Stream<List<Training>> _upcoming = _trainingService
-      .streamTrainings(widget.teamId, isCoach: widget.isCoach, past: false);
-  late DateTime _weekStart = startOfWeek(DateTime.now());
-  late Stream<List<Training>> _weekTrainings = _streamWeek();
+  late final Stream<QuerySnapshot<Map<String, dynamic>>> _members = _teamService
+      .streamTeamMembers(widget.teamId);
 
   @override
   void initState() {
     super.initState();
+    // Po přepnutí záložky překreslit – tlačítko Přidat se na záložce Tým
+    // schová.
+    _tabs.addListener(() => setState(() {}));
     // Správce týmu se sleduje živě – po předání vedení se obrazovce hned
     // změní nabízené akce (stejná oprávnění vynucuje firestore.rules).
     _teamSub = _teamService.streamTeam(widget.teamId).listen((doc) {
@@ -69,102 +73,28 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
   @override
   void dispose() {
     _teamSub?.cancel();
-    _rosterScroll.dispose();
+    _tabs.dispose();
     super.dispose();
   }
 
-  String get _myUid => FirebaseAuth.instance.currentUser?.uid ?? '';
+  bool get _isOwner =>
+      _ownerUid != null && _ownerUid == FirebaseAuth.instance.currentUser?.uid;
 
-  bool get _isOwner => _ownerUid != null && _ownerUid == _myUid;
-
-  void _openCalendar() {
+  void _addEvent() {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => TeamCalendarScreen(
-          teamId: widget.teamId,
-          teamName: widget.teamName,
-          isCoach: widget.isCoach,
-        ),
+        builder: (_) => TrainingFormScreen(teamId: widget.teamId),
       ),
     );
-  }
-
-  Stream<List<Training>> _streamWeek() =>
-      _trainingService.streamTrainingsBetween(
-        widget.teamId,
-        isCoach: widget.isCoach,
-        from: _weekStart,
-        to: DateTime(_weekStart.year, _weekStart.month, _weekStart.day + 7),
-      );
-
-  void _showWeek(int offset) {
-    setState(() {
-      _weekStart = DateTime(
-          _weekStart.year, _weekStart.month, _weekStart.day + 7 * offset);
-      _weekTrainings = _streamWeek();
-    });
-  }
-
-  void _showError(Object e) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(errorText(e))),
-    );
-  }
-
-  Future<void> _changeRole(String uid, TeamRole currentRole) async {
-    final newRole =
-        currentRole == TeamRole.coach ? TeamRole.player : TeamRole.coach;
-    try {
-      await _teamService.updateMemberRole(widget.teamId, uid, newRole);
-    } catch (e) {
-      if (mounted) _showError(e);
-    }
-  }
-
-  Future<void> _removeMember(String uid, String name) async {
-    final confirmed = await confirmDialog(
-      context,
-      title: 'Odebrat člena',
-      message: 'Opravdu chceš odebrat "$name" z týmu?',
-      confirmLabel: 'Odebrat',
-    );
-    if (!confirmed) return;
-
-    try {
-      await _teamService.removeMember(widget.teamId, uid);
-    } catch (e) {
-      if (mounted) _showError(e);
-    }
-  }
-
-  Future<void> _transferOwnership(String uid, String name, bool isPlayer) async {
-    final confirmed = await confirmDialog(
-      context,
-      title: 'Předat vedení týmu',
-      message: 'Správcem týmu "${widget.teamName}" se stane "$name"'
-          '${isPlayer ? ' a zároveň se stane trenérem' : ''}. '
-          'Ty zůstaneš trenérem, ale tým už nebudeš moct zrušit ani spravovat trenéry.',
-      confirmLabel: 'Předat vedení',
-    );
-    if (!confirmed) return;
-
-    try {
-      await _teamService.transferOwnership(widget.teamId, uid);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Správcem týmu je teď $name')),
-      );
-    } catch (e) {
-      if (mounted) _showError(e);
-    }
   }
 
   Future<void> _deleteTeam() async {
     final confirmed = await confirmDialog(
       context,
       title: 'Zrušit tým',
-      message: 'Opravdu chceš úplně zrušit tým "${widget.teamName}"? '
+      message:
+          'Opravdu chceš úplně zrušit tým "${widget.teamName}"? '
           'Smažou se všichni členové a tato akce je nevratná.',
       confirmLabel: 'Zrušit tým',
     );
@@ -177,37 +107,27 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _deleting = false);
-      _showError(e);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(errorText(e))));
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    // Tlačítko Přidat má trenér na Přehledu a v Kalendáři (ne na záložce Tým).
+    final showAdd = widget.isCoach && !_deleting && _tabs.index != 2;
+
     return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.teamName),
-        actions: [
-          if (widget.code != null)
-            IconButton(
-              icon: const Icon(Icons.copy),
-              tooltip: 'Kopírovat kód týmu',
-              onPressed: () {
-                Clipboard.setData(ClipboardData(text: widget.code!));
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Kód ${widget.code} zkopírován')),
-                );
-              },
-            ),
-          if (_isOwner)
-            IconButton(
-              icon: const Icon(Icons.delete_forever),
-              tooltip: 'Zrušit tým',
-              onPressed: _deleting ? null : _deleteTeam,
-            ),
-          const LogoutButton(),
-        ],
-      ),
+      appBar: AppBar(title: Text(widget.teamName), actions: [_buildMenu()]),
       bottomNavigationBar: const AppBottomBar(current: AppTab.home),
+      floatingActionButton: showAdd
+          ? FloatingActionButton.extended(
+              icon: const Icon(Icons.add),
+              label: const Text('Přidat'),
+              onPressed: _addEvent,
+            )
+          : null,
       body: _deleting
           ? const Center(child: CircularProgressIndicator())
           : StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
@@ -220,20 +140,52 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                   return const Center(child: CircularProgressIndicator());
                 }
                 final members = snapshot.data!.docs;
+                final coachCount = members
+                    .where(
+                      (m) =>
+                          TeamRole.fromName(m.data()['role'] as String?) ==
+                          TeamRole.coach,
+                    )
+                    .length;
 
-                return ListView(
-                  padding: const EdgeInsets.all(16),
+                // Přepínač záložek je pevně nahoře, pod ním obsah vybrané
+                // záložky (TabBarView – jde i přejet prstem do strany).
+                return Column(
                   children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        SizedBox(width: 132, child: _buildWeekCalendar()),
-                        const SizedBox(width: 12),
-                        Expanded(child: _buildRoster(members)),
-                      ],
+                    _TabSwitcher(controller: _tabs),
+                    Expanded(
+                      child: TabBarView(
+                        controller: _tabs,
+                        children: [
+                          TeamOverviewTab(
+                            teamId: widget.teamId,
+                            isCoach: widget.isCoach,
+                            players: playerNames(members),
+                            onOpenCalendar: () => _tabs.animateTo(1),
+                            header: _TeamHeader(
+                              isCoach: widget.isCoach,
+                              isOwner: _isOwner,
+                              coachCount: coachCount,
+                              playerCount: members.length - coachCount,
+                              code: widget.code,
+                            ),
+                          ),
+                          TeamCalendarTab(
+                            teamId: widget.teamId,
+                            isCoach: widget.isCoach,
+                            players: playerNames(members),
+                          ),
+                          TeamRosterTab(
+                            teamId: widget.teamId,
+                            teamName: widget.teamName,
+                            isCoach: widget.isCoach,
+                            ownerUid: _ownerUid,
+                            members: members,
+                            code: widget.code,
+                          ),
+                        ],
+                      ),
                     ),
-                    const SizedBox(height: 16),
-                    _buildNextTraining(playerNames(members)),
                   ],
                 );
               },
@@ -241,241 +193,48 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
     );
   }
 
-  Widget _buildWeekCalendar() {
-    return Column(
-      children: [
-        StreamBuilder<List<Training>>(
-          stream: _weekTrainings,
-          builder: (context, snapshot) => WeekCalendar(
-            weekStart: _weekStart,
-            // Po přepnutí týdne nezobrazovat tečky z předchozího týdne.
-            trainings: snapshot.connectionState == ConnectionState.waiting
-                ? const []
-                : snapshot.data ?? const [],
-            onPreviousWeek: () => _showWeek(-1),
-            onNextWeek: () => _showWeek(1),
-            onDayTap: (_) => _openCalendar(),
-          ),
-        ),
-        TextButton.icon(
-          onPressed: _openCalendar,
-          icon: const Icon(Icons.calendar_month, size: 18),
-          label: const Text('Celý kalendář'),
-        ),
-      ],
-    );
-  }
-
-  /// Soupiska rozdělená na trenéry (správce první) a hráče, obojí v pořadí,
-  /// v jakém se připojili.
-  ///
-  /// Je v rámečku s pevnou maximální výškou (zhruba 5 členů) a další členy
-  /// jde rolovat uvnitř něj – i u velkého týmu tak zůstane nejbližší trénink
-  /// hned pod soupiskou.
-  Widget _buildRoster(
-      List<QueryDocumentSnapshot<Map<String, dynamic>>> members) {
-    bool isCoach(QueryDocumentSnapshot<Map<String, dynamic>> member) =>
-        TeamRole.fromName(member.data()['role'] as String?) == TeamRole.coach;
-
-    final coaches = [
-      ...members.where((m) => isCoach(m) && m.id == _ownerUid),
-      ...members.where((m) => isCoach(m) && m.id != _ownerUid),
-    ];
-    final players = members.where((m) => !isCoach(m)).toList();
-
-    return Card.outlined(
-      margin: EdgeInsets.zero,
-      clipBehavior: Clip.antiAlias,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxHeight: 370),
-        child: Scrollbar(
-          controller: _rosterScroll,
-          thumbVisibility: true,
-          child: ListView(
-            controller: _rosterScroll,
-            // Menší soupiska zabere jen tolik místa, kolik potřebuje.
-            shrinkWrap: true,
-            padding: const EdgeInsets.fromLTRB(8, 8, 12, 0),
-            children: [
-              SectionTitle(
-                'Trenéři (${coaches.length})',
-                padding: const EdgeInsets.only(bottom: 4),
-              ),
-              for (final member in coaches) _buildMember(member),
-              SectionTitle('Hráči (${players.length})'),
-              if (players.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Text(
-                    widget.isCoach
-                        ? 'Zatím žádní hráči. Pozvi je pomocí kódu týmu.'
-                        : 'Zatím žádní hráči.',
-                    style: const TextStyle(color: Colors.black54),
-                  ),
-                ),
-              for (final member in players) _buildMember(member),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMember(QueryDocumentSnapshot<Map<String, dynamic>> member) {
-    final data = member.data();
-    final uid = member.id;
-    final role = TeamRole.fromName(data['role'] as String?);
-    final name = memberName(data);
-    final isMe = uid == _myUid;
-    final isOwnerRow = uid == _ownerUid;
-
-    return Card(
-      elevation: 1,
-      margin: const EdgeInsets.only(bottom: 8),
-      child: ListTile(
-        dense: true,
-        contentPadding: const EdgeInsets.only(left: 8),
-        horizontalTitleGap: 8,
-        leading: RoleAvatar(isCoach: role == TeamRole.coach),
-        title: Text(
-          isMe ? '$name (já)' : name,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-        ),
-        subtitle: isOwnerRow ? const Text('Správce týmu') : null,
-        trailing: _memberActions(
-          uid: uid,
-          name: name,
-          role: role,
-          isOwnerRow: isOwnerRow,
-          isMe: isMe,
-        ),
-      ),
-    );
-  }
-
-  /// Nejbližší akce (trénink nebo zápas), která ještě neskončila – ze
-  /// stejných akcí, jaké uživatel vidí v kalendáři (hráč jen společné
-  /// tréninky, zápasy a svoje individuální tréninky).
-  Widget _buildNextTraining(Map<String, String> players) {
-    return StreamBuilder<List<Training>>(
-      stream: _upcoming,
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return Text(errorText(snapshot.error!));
-        }
-        if (!snapshot.hasData) return const SizedBox.shrink();
-
-        final now = DateTime.now();
-        final next = snapshot.data!
-            .where((t) =>
-                t.startAt.isAfter(now) || (t.endAt?.isAfter(now) ?? false))
-            .firstOrNull;
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SectionTitle(next == null
-                ? 'Nejbližší akce'
-                : 'Nejbližší akce · ${formatDayHeader(next.startAt)}'),
-            if (next == null)
-              const Text(
-                'Žádná naplánovaná akce.',
-                style: TextStyle(color: Colors.black54),
-              )
-            else
-              TrainingCard(
-                teamId: widget.teamId,
-                training: next,
-                isCoach: widget.isCoach,
-                players: players,
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => TrainingDetailScreen(
-                      teamId: widget.teamId,
-                      trainingId: next.id,
-                      isCoach: widget.isCoach,
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        );
-      },
-    );
-  }
-
-  /// Akce u člena soupisky podle oprávnění (stejná vynucuje
-  /// firestore.rules): správce mění role, předává vedení a odebírá
-  /// kohokoli kromě sebe, trenér smí jen odebrat hráče. Správce je zamčený.
-  Widget? _memberActions({
-    required String uid,
-    required String name,
-    required TeamRole role,
-    required bool isOwnerRow,
-    required bool isMe,
-  }) {
-    if (!widget.isCoach) return null;
-    if (isOwnerRow) {
-      return const Tooltip(
-        message: 'Správce týmu nelze změnit na hráče ani odebrat z týmu',
-        child: Padding(
-          padding: EdgeInsets.all(12),
-          child: Icon(Icons.lock_outline, color: Colors.black38),
-        ),
-      );
-    }
-
-    final isMemberCoach = role == TeamRole.coach;
-    if (!_isOwner) {
-      if (isMemberCoach || isMe) return null;
-      return IconButton(
-        icon: const Icon(Icons.person_remove),
-        tooltip: 'Odebrat z týmu',
-        onPressed: () => _removeMember(uid, name),
-      );
-    }
-
-    return PopupMenuButton<_MemberAction>(
-      tooltip: 'Možnosti člena',
+  /// Menu ⋮ vpravo nahoře – kopírovat kód (trenér), zrušit tým (správce)
+  /// a odhlásit se.
+  Widget _buildMenu() {
+    final code = widget.code;
+    final error = Theme.of(context).colorScheme.error;
+    return PopupMenuButton<_TeamAction>(
+      tooltip: 'Další možnosti',
       onSelected: (action) {
         switch (action) {
-          case _MemberAction.toggleRole:
-            _changeRole(uid, role);
-          case _MemberAction.transfer:
-            _transferOwnership(uid, name, !isMemberCoach);
-          case _MemberAction.remove:
-            _removeMember(uid, name);
+          case _TeamAction.copyCode:
+            copyTeamCode(context, code!);
+          case _TeamAction.delete:
+            _deleteTeam();
+          case _TeamAction.logout:
+            logOut(context);
         }
       },
       itemBuilder: (context) => [
-        PopupMenuItem(
-          value: _MemberAction.toggleRole,
-          child: ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: Icon(
-              isMemberCoach ? Icons.arrow_downward : Icons.arrow_upward,
-            ),
-            title: Text(
-              isMemberCoach ? 'Nastavit jako hráče' : 'Nastavit jako trenéra',
+        if (code != null)
+          const PopupMenuItem(
+            value: _TeamAction.copyCode,
+            child: ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.copy),
+              title: Text('Kopírovat kód týmu'),
             ),
           ),
-        ),
-        const PopupMenuItem(
-          value: _MemberAction.transfer,
-          child: ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: Icon(Icons.workspace_premium),
-            title: Text('Předat vedení týmu'),
+        if (_isOwner)
+          PopupMenuItem(
+            value: _TeamAction.delete,
+            child: ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.delete_forever, color: error),
+              title: Text('Zrušit tým', style: TextStyle(color: error)),
+            ),
           ),
-        ),
         const PopupMenuItem(
-          value: _MemberAction.remove,
+          value: _TeamAction.logout,
           child: ListTile(
             contentPadding: EdgeInsets.zero,
-            leading: Icon(Icons.person_remove),
-            title: Text('Odebrat z týmu'),
+            leading: Icon(Icons.logout),
+            title: Text('Odhlásit se'),
           ),
         ),
       ],
@@ -483,4 +242,139 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
   }
 }
 
-enum _MemberAction { toggleRole, transfer, remove }
+enum _TeamAction { copyCode, delete, logout }
+
+/// Barevná hlavička týmu – role uživatele, počet trenérů a hráčů a u
+/// trenéra pozvánkový kód (klepnutím se zkopíruje).
+class _TeamHeader extends StatelessWidget {
+  const _TeamHeader({
+    required this.isCoach,
+    required this.isOwner,
+    required this.coachCount,
+    required this.playerCount,
+    required this.code,
+  });
+
+  final bool isCoach;
+  final bool isOwner;
+  final int coachCount;
+  final int playerCount;
+  final String? code;
+
+  @override
+  Widget build(BuildContext context) {
+    final code = this.code;
+    final role = isOwner ? 'Správce týmu' : (isCoach ? 'Trenér' : 'Hráč');
+
+    return GradientCard(
+      gradient: isCoach ? AppColors.brandGradient : AppColors.playerGradient,
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              IconBadge(
+                icon: isCoach ? Icons.sports : Icons.directions_run,
+                size: 52,
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      role,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    Text(
+                      '${czechCount(playerCount, 'hráč', 'hráči', 'hráčů')}'
+                      ' · '
+                      '${czechCount(coachCount, 'trenér', 'trenéři', 'trenérů')}',
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.85),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (code != null) ...[
+            const SizedBox(height: 14),
+            Material(
+              color: Colors.white.withValues(alpha: 0.18),
+              borderRadius: BorderRadius.circular(999),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(999),
+                onTap: () => copyTeamCode(context, code),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 8,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Kód pro hráče: ',
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.85),
+                        ),
+                      ),
+                      Text(
+                        code,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.5,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      const Icon(Icons.copy, size: 16, color: Colors.white),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Přepínač záložek Přehled / Kalendář / Tým.
+class _TabSwitcher extends StatelessWidget {
+  const _TabSwitcher({required this.controller});
+
+  final TabController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+      child: Container(
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: colors.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: colors.outlineVariant),
+        ),
+        child: TabBar(
+          controller: controller,
+          tabs: const [
+            Tab(height: 36, text: 'Přehled'),
+            Tab(height: 36, text: 'Kalendář'),
+            Tab(height: 36, text: 'Tým'),
+          ],
+        ),
+      ),
+    );
+  }
+}
