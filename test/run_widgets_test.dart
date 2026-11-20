@@ -4,20 +4,20 @@ import 'package:tren_app/services/run_service.dart';
 import 'package:tren_app/widgets/run_widgets.dart';
 
 Run makeRun(List<RunPoint> points) => Run(
-      startedAt: DateTime(2026, 11, 16, 17, 5),
-      endedAt: DateTime(2026, 11, 16, 17, 40),
-      durationSeconds: 1709,
-      distanceMeters: 5230,
-      points: points,
-    );
+  startedAt: DateTime(2026, 11, 16, 17, 5),
+  endedAt: DateTime(2026, 11, 16, 17, 40),
+  durationSeconds: 1709,
+  distanceMeters: 5230,
+  points: points,
+);
 
-Future<void> pump(WidgetTester tester, Widget child) => tester.pumpWidget(
-      MaterialApp(home: Scaffold(body: child)),
-    );
+Future<void> pump(WidgetTester tester, Widget child) =>
+    tester.pumpWidget(MaterialApp(home: Scaffold(body: child)));
 
 void main() {
-  testWidgets('údaje o běhu: čas, vzdálenost, tempo, start a pauzy',
-      (tester) async {
+  testWidgets('údaje o běhu: čas, vzdálenost, tempo, start a pauzy', (
+    tester,
+  ) async {
     await pump(
       tester,
       RunStats(

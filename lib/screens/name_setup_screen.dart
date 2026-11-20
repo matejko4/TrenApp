@@ -57,10 +57,9 @@ class _NameSetupScreenState extends State<NameSetupScreen> {
         title: const Text('TrenApp'),
         backgroundColor: Colors.transparent,
         foregroundColor: Colors.white,
-        titleTextStyle: Theme.of(context)
-            .textTheme
-            .titleLarge
-            ?.copyWith(color: Colors.white),
+        titleTextStyle: Theme.of(
+          context,
+        ).textTheme.titleLarge?.copyWith(color: Colors.white),
         systemOverlayStyle: SystemUiOverlayStyle.light,
         automaticallyImplyLeading: false,
         actions: const [LogoutButton()],

@@ -35,7 +35,8 @@ String teamIdFromName(String name) => name
 
 /// Hráči (bez trenérů) ze soupisky týmu jako uid -> jméno.
 Map<String, String> playerNames(
-    List<QueryDocumentSnapshot<Map<String, dynamic>>> members) {
+  List<QueryDocumentSnapshot<Map<String, dynamic>>> members,
+) {
   return {
     for (final doc in members)
       if (TeamRole.fromName(doc.data()['role'] as String?) == TeamRole.player)
@@ -178,7 +179,8 @@ class TeamService {
       // úprava cizího týmu a pravidla ho zamítnou.
       if (e.code == 'permission-denied') {
         throw AppException(
-            'Tým s názvem "$trimmedName" už existuje, zvol jiný název');
+          'Tým s názvem "$trimmedName" už existuje, zvol jiný název',
+        );
       }
       rethrow;
     }
@@ -203,8 +205,11 @@ class TeamService {
 
     final teamId = codeDoc.data()!['teamId'] as String;
     final teamName = codeDoc.data()!['teamName'] as String? ?? 'Tým';
-    final memberRef =
-        _db.collection('teams').doc(teamId).collection('members').doc(user.uid);
+    final memberRef = _db
+        .collection('teams')
+        .doc(teamId)
+        .collection('members')
+        .doc(user.uid);
 
     final existingMember = await memberRef.get();
     if (existingMember.exists) {
@@ -249,8 +254,7 @@ class TeamService {
   }
 
   /// Stream členů (rosteru) konkrétního týmu.
-  Stream<QuerySnapshot<Map<String, dynamic>>> streamTeamMembers(
-      String teamId) {
+  Stream<QuerySnapshot<Map<String, dynamic>>> streamTeamMembers(String teamId) {
     return _db
         .collection('teams')
         .doc(teamId)
@@ -273,7 +277,11 @@ class TeamService {
   /// Kromě záznamu v rosteru (teams/{teamId}/members/{uid}) se role
   /// aktualizuje i v indexu users/{uid}/teams/{teamId}, aby zůstala
   /// konzistentní i tam, odkud si daný uživatel čte přehled svých týmů.
-  Future<void> updateMemberRole(String teamId, String uid, TeamRole role) async {
+  Future<void> updateMemberRole(
+    String teamId,
+    String uid,
+    TeamRole role,
+  ) async {
     if (role == TeamRole.player) {
       final teamDoc = await _db.collection('teams').doc(teamId).get();
       if (teamDoc.data()?['ownerUid'] == uid) {
@@ -303,7 +311,8 @@ class TeamService {
     final teamDoc = await _db.collection('teams').doc(teamId).get();
     if (teamDoc.data()?['ownerUid'] == uid) {
       throw AppException(
-          'Správce nelze z týmu odebrat. Může předat vedení jinému členovi, nebo tým zrušit.');
+        'Správce nelze z týmu odebrat. Může předat vedení jinému členovi, nebo tým zrušit.',
+      );
     }
 
     final batch = _db.batch();
@@ -329,10 +338,15 @@ class TeamService {
     }
 
     final batch = _db.batch();
-    if (TeamRole.fromName(member.data()?['role'] as String?) != TeamRole.coach) {
+    if (TeamRole.fromName(member.data()?['role'] as String?) !=
+        TeamRole.coach) {
       batch.update(member.reference, {'role': TeamRole.coach.name});
       batch.update(
-        _db.collection('users').doc(newOwnerUid).collection('teams').doc(teamId),
+        _db
+            .collection('users')
+            .doc(newOwnerUid)
+            .collection('teams')
+            .doc(teamId),
         {'role': TeamRole.coach.name},
       );
     }
@@ -390,7 +404,11 @@ class TeamService {
     for (final memberDoc in membersSnap.docs) {
       batch.delete(memberDoc.reference);
       batch.delete(
-        _db.collection('users').doc(memberDoc.id).collection('teams').doc(teamId),
+        _db
+            .collection('users')
+            .doc(memberDoc.id)
+            .collection('teams')
+            .doc(teamId),
       );
     }
     if (code != null) {

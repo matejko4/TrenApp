@@ -39,15 +39,19 @@ Training makeTraining({
 }
 
 void main() {
-  testWidgets('trenér vidí počty odpovědí jen za současné hráče',
-      (tester) async {
+  testWidgets('trenér vidí počty odpovědí jen za současné hráče', (
+    tester,
+  ) async {
     await pumpCoachCard(
       tester,
-      makeTraining(kind: TrainingKind.team, responses: {
-        'jan': TrainingResponse.yes,
-        'petr': TrainingResponse.no,
-        'odesel': TrainingResponse.yes,
-      }),
+      makeTraining(
+        kind: TrainingKind.team,
+        responses: {
+          'jan': TrainingResponse.yes,
+          'petr': TrainingResponse.no,
+          'odesel': TrainingResponse.yes,
+        },
+      ),
     );
 
     expect(find.text('Společný'), findsOneWidget);
@@ -56,45 +60,55 @@ void main() {
     expect(find.text('Bez odpovědi 1'), findsOneWidget);
   });
 
-  testWidgets('zápas má štítek „Zápas“ a souhrn odpovědí jako společný trénink',
-      (tester) async {
-    await pumpCoachCard(
-      tester,
-      makeTraining(
-        kind: TrainingKind.team,
-        type: TrainingType.match,
-        responses: {'jan': TrainingResponse.yes, 'eva': TrainingResponse.yes},
-      ),
-    );
+  testWidgets(
+    'zápas má štítek „Zápas“ a souhrn odpovědí jako společný trénink',
+    (tester) async {
+      await pumpCoachCard(
+        tester,
+        makeTraining(
+          kind: TrainingKind.team,
+          type: TrainingType.match,
+          responses: {'jan': TrainingResponse.yes, 'eva': TrainingResponse.yes},
+        ),
+      );
 
-    expect(find.text('Zápas'), findsOneWidget);
-    expect(find.text('Společný'), findsNothing);
-    expect(find.byIcon(Icons.emoji_events), findsOneWidget);
-    expect(find.text('Přijde 2'), findsOneWidget);
-    expect(find.text('Bez odpovědi 1'), findsOneWidget);
-  });
+      expect(find.text('Zápas'), findsOneWidget);
+      expect(find.text('Společný'), findsNothing);
+      expect(find.byIcon(Icons.emoji_events), findsOneWidget);
+      expect(find.text('Přijde 2'), findsOneWidget);
+      expect(find.text('Bez odpovědi 1'), findsOneWidget);
+    },
+  );
 
-  testWidgets('trenér vidí, komu je individuální trénink zadaný a kolik ho splnilo',
-      (tester) async {
-    await pumpCoachCard(
-      tester,
-      makeTraining(
-        kind: TrainingKind.individual,
-        assignedTo: ['jan', 'eva', 'odesel'],
-        responses: {'jan': TrainingResponse.done, 'odesel': TrainingResponse.done},
-      ),
-    );
+  testWidgets(
+    'trenér vidí, komu je individuální trénink zadaný a kolik ho splnilo',
+    (tester) async {
+      await pumpCoachCard(
+        tester,
+        makeTraining(
+          kind: TrainingKind.individual,
+          assignedTo: ['jan', 'eva', 'odesel'],
+          responses: {
+            'jan': TrainingResponse.done,
+            'odesel': TrainingResponse.done,
+          },
+        ),
+      );
 
-    expect(find.text('Individuální'), findsOneWidget);
-    expect(find.text('Pro: Jan, Eva'), findsOneWidget);
-    expect(find.text('Splněno 1 / 2'), findsOneWidget);
-  });
+      expect(find.text('Individuální'), findsOneWidget);
+      expect(find.text('Pro: Jan, Eva'), findsOneWidget);
+      expect(find.text('Splněno 1 / 2'), findsOneWidget);
+    },
+  );
 
   test('popisky stavů odpovídají odpovědím', () {
     expect(teamResponseLabel(TrainingResponse.yes).label, 'Budu');
     expect(teamResponseLabel(TrainingResponse.no).label, 'Nebudu');
     expect(teamResponseLabel(null).label, 'Bez odpovědi');
-    expect(individualStatusLabel(IndividualStatus.planned).label, 'Naplánovaný');
+    expect(
+      individualStatusLabel(IndividualStatus.planned).label,
+      'Naplánovaný',
+    );
     expect(individualStatusLabel(IndividualStatus.done).label, 'Splněný');
     expect(individualStatusLabel(IndividualStatus.missed).label, 'Nesplněný');
   });

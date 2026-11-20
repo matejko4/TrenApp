@@ -41,7 +41,8 @@ class HomeScreen extends StatelessWidget {
             return const ComingSoon(
               icon: Icons.groups,
               title: 'Zatím nejsi v žádném týmu',
-              message: 'Založ nový tým, nebo se připoj kódem od trenéra – '
+              message:
+                  'Založ nový tým, nebo se připoj kódem od trenéra – '
                   'tlačítkem Přidat tým dole.',
             );
           }
@@ -86,7 +87,9 @@ class HomeScreen extends StatelessWidget {
                     ),
                   ),
                   subtitle: Text(
-                    isCoach && code != null ? 'Trenér · Kód pro hráče: $code' : (isCoach ? 'Trenér' : 'Hráč'),
+                    isCoach && code != null
+                        ? 'Trenér · Kód pro hráče: $code'
+                        : (isCoach ? 'Trenér' : 'Hráč'),
                   ),
                   trailing: isCoach && code != null
                       ? IconButton(

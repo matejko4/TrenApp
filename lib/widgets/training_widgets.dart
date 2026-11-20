@@ -12,13 +12,13 @@ import 'common.dart';
 // Widgety pro zobrazení tréninku sdílené kalendářem a detailem tréninku.
 
 IconData trainingTypeIcon(TrainingType type) => switch (type) {
-      TrainingType.run => Icons.directions_run,
-      TrainingType.strength => Icons.fitness_center,
-      TrainingType.technique => Icons.sports_soccer,
-      TrainingType.recovery => Icons.self_improvement,
-      TrainingType.other => Icons.event,
-      TrainingType.match => Icons.emoji_events,
-    };
+  TrainingType.run => Icons.directions_run,
+  TrainingType.strength => Icons.fitness_center,
+  TrainingType.technique => Icons.sports_soccer,
+  TrainingType.recovery => Icons.self_improvement,
+  TrainingType.other => Icons.event,
+  TrainingType.match => Icons.emoji_events,
+};
 
 /// Barva akce: společný trénink indigo, individuální zelenomodrá, zápas
 /// oranžová (viz AppColors). Používá ji ikona, štítek i tečka v týdenním
@@ -114,22 +114,40 @@ class TrainingKindChip extends StatelessWidget {
 TrainingStatusLabel individualStatusLabel(IndividualStatus status) =>
     switch (status) {
       IndividualStatus.planned => const TrainingStatusLabel(
-          icon: Icons.schedule, color: AppColors.planned, label: 'Naplánovaný'),
+        icon: Icons.schedule,
+        color: AppColors.planned,
+        label: 'Naplánovaný',
+      ),
       IndividualStatus.done => const TrainingStatusLabel(
-          icon: Icons.check_circle, color: AppColors.success, label: 'Splněný'),
+        icon: Icons.check_circle,
+        color: AppColors.success,
+        label: 'Splněný',
+      ),
       IndividualStatus.missed => const TrainingStatusLabel(
-          icon: Icons.cancel, color: AppColors.danger, label: 'Nesplněný'),
+        icon: Icons.cancel,
+        color: AppColors.danger,
+        label: 'Nesplněný',
+      ),
     };
 
 /// Odpověď hráče na společný trénink.
 TrainingStatusLabel teamResponseLabel(TrainingResponse? response) =>
     switch (response) {
       TrainingResponse.yes => const TrainingStatusLabel(
-          icon: Icons.check_circle, color: AppColors.success, label: 'Budu'),
+        icon: Icons.check_circle,
+        color: AppColors.success,
+        label: 'Budu',
+      ),
       TrainingResponse.no => const TrainingStatusLabel(
-          icon: Icons.cancel, color: AppColors.danger, label: 'Nebudu'),
+        icon: Icons.cancel,
+        color: AppColors.danger,
+        label: 'Nebudu',
+      ),
       _ => const TrainingStatusLabel(
-          icon: Icons.help_outline, color: AppColors.neutral, label: 'Bez odpovědi'),
+        icon: Icons.help_outline,
+        color: AppColors.neutral,
+        label: 'Bez odpovědi',
+      ),
     };
 
 /// Karta tréninku v kalendáři. Hráč na ní rovnou odpovídá / plní trénink,
@@ -246,13 +264,15 @@ class TrainingCoachSummary extends StatelessWidget {
         runSpacing: 4,
         children: [
           TrainingStatusLabel(
-              icon: Icons.check_circle,
-              color: AppColors.success,
-              label: 'Přijde $yes'),
+            icon: Icons.check_circle,
+            color: AppColors.success,
+            label: 'Přijde $yes',
+          ),
           TrainingStatusLabel(
-              icon: Icons.cancel,
-              color: AppColors.danger,
-              label: 'Nepřijde $no'),
+            icon: Icons.cancel,
+            color: AppColors.danger,
+            label: 'Nepřijde $no',
+          ),
           TrainingStatusLabel(
             icon: Icons.help_outline,
             color: AppColors.neutral,
@@ -298,14 +318,17 @@ class TrainingPlayerActions extends StatelessWidget {
   final String teamId;
   final Training training;
 
-  Future<void> _respond(BuildContext context, TrainingResponse? response) async {
+  Future<void> _respond(
+    BuildContext context,
+    TrainingResponse? response,
+  ) async {
     try {
       await TrainingService().respond(teamId, training.id, response);
     } catch (e) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(errorText(e))),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(errorText(e))));
     }
   }
 

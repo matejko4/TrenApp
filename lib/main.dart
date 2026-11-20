@@ -8,9 +8,7 @@ import 'theme/app_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   // Sledování připojení pro pruh „Jste offline“ (viz OfflineBanner).
   await NetworkStatus.start();
   // Zvolený vzhled (světlý / tmavý) z minula – ať aplikace neproblikne.

@@ -3,12 +3,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:tren_app/widgets/offline_banner.dart';
 
 void main() {
-  testWidgets('pruh „Jste offline“ se ukáže jen bez připojení',
-      (tester) async {
+  testWidgets('pruh „Jste offline“ se ukáže jen bez připojení', (tester) async {
     final offline = ValueNotifier(false);
-    await tester.pumpWidget(MaterialApp(
-      home: Scaffold(bottomNavigationBar: OfflineBanner(offline: offline)),
-    ));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(bottomNavigationBar: OfflineBanner(offline: offline)),
+      ),
+    );
     expect(find.text('Jste offline'), findsNothing);
 
     offline.value = true;

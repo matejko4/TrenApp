@@ -45,26 +45,29 @@ void main() {
     expect(tracker.distanceMeters, closeTo(metersPerStep, 1));
   });
 
-  test('pauza zastaví čas, body během ní se ignorují a úsek přes pauzu se nepočítá', () {
-    tracker.start();
-    tracker.addPosition(50, 14, 5);
-    wait(60);
-    tracker.addPosition(50 + step, 14, 5);
+  test(
+    'pauza zastaví čas, body během ní se ignorují a úsek přes pauzu se nepočítá',
+    () {
+      tracker.start();
+      tracker.addPosition(50, 14, 5);
+      wait(60);
+      tracker.addPosition(50 + step, 14, 5);
 
-    tracker.pause();
-    wait(300);
-    tracker.addPosition(50 + 5 * step, 14, 5);
-    expect(tracker.activeSeconds, 60);
+      tracker.pause();
+      wait(300);
+      tracker.addPosition(50 + 5 * step, 14, 5);
+      expect(tracker.activeSeconds, 60);
 
-    tracker.resume();
-    tracker.addPosition(50 + 10 * step, 14, 5); // jinde než před pauzou
-    wait(60);
-    tracker.addPosition(50 + 11 * step, 14, 5);
+      tracker.resume();
+      tracker.addPosition(50 + 10 * step, 14, 5); // jinde než před pauzou
+      wait(60);
+      tracker.addPosition(50 + 11 * step, 14, 5);
 
-    expect(tracker.activeSeconds, 120);
-    expect(tracker.distanceMeters, closeTo(2 * metersPerStep, 1));
-    expect(tracker.points.map((p) => p.s), [0, 0, 1, 1]);
-  });
+      expect(tracker.activeSeconds, 120);
+      expect(tracker.distanceMeters, closeTo(2 * metersPerStep, 1));
+      expect(tracker.points.map((p) => p.s), [0, 0, 1, 1]);
+    },
+  );
 
   test('po ukončení vrátí běh s celými čísly pro databázi', () {
     tracker.start();
@@ -85,7 +88,12 @@ void main() {
     final map = run.toMap();
     expect(map['durationSeconds'], isA<int>());
     expect(map['distanceMeters'], isA<int>());
-    expect((map['points'] as List).first, {'lat': 50.0, 'lng': 14.0, 't': 0, 's': 0});
+    expect((map['points'] as List).first, {
+      'lat': 50.0,
+      'lng': 14.0,
+      't': 0,
+      's': 0,
+    });
   });
 
   test('neukončený běh nejde uložit', () {
@@ -95,12 +103,12 @@ void main() {
 
   group('Run', () {
     Run runWith(List<RunPoint> points) => Run(
-          startedAt: DateTime(2026),
-          endedAt: DateTime(2026),
-          durationSeconds: 0,
-          distanceMeters: 0,
-          points: points,
-        );
+      startedAt: DateTime(2026),
+      endedAt: DateTime(2026),
+      durationSeconds: 0,
+      distanceMeters: 0,
+      points: points,
+    );
     RunPoint point(int s) => RunPoint(lat: 50, lng: 14, t: 0, s: s);
 
     test('rozdělí body na úseky a spočítá pauzy', () {

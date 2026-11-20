@@ -22,8 +22,11 @@ Future<bool> waitForServer(
   } on TimeoutException {
     // Kdyby server zápis po připojení odmítl, obrazovka už je zavřená –
     // chyba se jen vypíše do konzole.
-    unawaited(write.catchError(
-        (Object e) => debugPrint('Odložený zápis do Firestore selhal: $e')));
+    unawaited(
+      write.catchError(
+        (Object e) => debugPrint('Odložený zápis do Firestore selhal: $e'),
+      ),
+    );
     return false;
   }
 }

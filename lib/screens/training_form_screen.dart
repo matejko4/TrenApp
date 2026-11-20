@@ -28,12 +28,15 @@ class _TrainingFormScreenState extends State<TrainingFormScreen> {
   late final Stream<QuerySnapshot<Map<String, dynamic>>> _members =
       TeamService().streamTeamMembers(widget.teamId);
 
-  late final _titleController =
-      TextEditingController(text: widget.training?.title);
-  late final _placeController =
-      TextEditingController(text: widget.training?.place);
-  late final _descriptionController =
-      TextEditingController(text: widget.training?.description);
+  late final _titleController = TextEditingController(
+    text: widget.training?.title,
+  );
+  late final _placeController = TextEditingController(
+    text: widget.training?.place,
+  );
+  late final _descriptionController = TextEditingController(
+    text: widget.training?.description,
+  );
 
   late _EventKind _event = switch (widget.training) {
     null => _EventKind.team,
@@ -122,10 +125,14 @@ class _TrainingFormScreenState extends State<TrainingFormScreen> {
       final messenger = ScaffoldMessenger.of(context);
       Navigator.of(context).pop();
       if (!sent) {
-        messenger.showSnackBar(SnackBar(
-          content: Text('${_isMatch ? 'Zápas' : 'Trénink'} je uložený '
-              'v telefonu, odešle se, až budeš online.'),
-        ));
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(
+              '${_isMatch ? 'Zápas' : 'Trénink'} je uložený '
+              'v telefonu, odešle se, až budeš online.',
+            ),
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -143,9 +150,7 @@ class _TrainingFormScreenState extends State<TrainingFormScreen> {
     final noun = _isMatch ? 'zápas' : 'trénink';
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(isEdit ? 'Upravit $noun' : 'Nový $noun'),
-      ),
+      appBar: AppBar(title: Text(isEdit ? 'Upravit $noun' : 'Nový $noun')),
       body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         stream: _members,
         builder: (context, snapshot) {
@@ -172,10 +177,7 @@ class _TrainingFormScreenState extends State<TrainingFormScreen> {
                     value: _EventKind.individual,
                     label: Text('Individuální'),
                   ),
-                  ButtonSegment(
-                    value: _EventKind.match,
-                    label: Text('Zápas'),
-                  ),
+                  ButtonSegment(value: _EventKind.match, label: Text('Zápas')),
                 ],
                 selected: {_event},
                 onSelectionChanged: (selection) =>
@@ -210,8 +212,10 @@ class _TrainingFormScreenState extends State<TrainingFormScreen> {
               ),
               if (!_isMatch) ...[
                 const SizedBox(height: 16),
-                Text('Typ tréninku',
-                    style: Theme.of(context).textTheme.titleSmall),
+                Text(
+                  'Typ tréninku',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 8,
@@ -253,8 +257,9 @@ class _TrainingFormScreenState extends State<TrainingFormScreen> {
                       icon: Icons.schedule_outlined,
                       value: _end == null ? 'Nezadaný' : formatTime(_at(_end!)),
                       onTap: () => _pickTime(end: true),
-                      onClear:
-                          _end == null ? null : () => setState(() => _end = null),
+                      onClear: _end == null
+                          ? null
+                          : () => setState(() => _end = null),
                     ),
                   ),
                 ],
@@ -285,8 +290,10 @@ class _TrainingFormScreenState extends State<TrainingFormScreen> {
               ),
               if (!_isTeam) ...[
                 const SizedBox(height: 16),
-                Text('Pro které hráče',
-                    style: Theme.of(context).textTheme.titleSmall),
+                Text(
+                  'Pro které hráče',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
                 const SizedBox(height: 8),
                 _buildPlayerPicker(players),
               ],
@@ -318,9 +325,7 @@ class _TrainingFormScreenState extends State<TrainingFormScreen> {
     if (players.isEmpty) {
       return Text(
         'V týmu zatím nejsou žádní hráči. Pozvi je pomocí kódu týmu.',
-        style: TextStyle(
-          color: Theme.of(context).colorScheme.onSurfaceVariant,
-        ),
+        style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
       );
     }
 

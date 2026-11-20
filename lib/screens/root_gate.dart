@@ -29,8 +29,9 @@ class RootGate extends StatelessWidget {
           return const LoginScreen();
         }
 
-        final userRef =
-            FirebaseFirestore.instance.collection('users').doc(user.uid);
+        final userRef = FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid);
 
         return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
           stream: userRef.snapshots(),
@@ -57,8 +58,6 @@ class _LoadingScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(child: CircularProgressIndicator()),
-    );
+    return const Scaffold(body: Center(child: CircularProgressIndicator()));
   }
 }

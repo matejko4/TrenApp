@@ -21,7 +21,10 @@ class _LoginScreenState extends State<LoginScreen> {
   String _error = '';
 
   Future<void> _submit() async {
-    setState(() { _loading = true; _error = ''; });
+    setState(() {
+      _loading = true;
+      _error = '';
+    });
     try {
       if (_isLogin) {
         await _authService.login(
@@ -66,7 +69,10 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _googleSignIn() async {
-    setState(() { _loading = true; _error = ''; });
+    setState(() {
+      _loading = true;
+      _error = '';
+    });
     try {
       await _authService.signInWithGoogle();
     } catch (e) {
@@ -232,9 +238,11 @@ class _LoginScreenState extends State<LoginScreen> {
                       style: TextButton.styleFrom(
                         foregroundColor: Colors.white,
                       ),
-                      child: Text(_isLogin
-                          ? 'Nemáš účet? Zaregistruj se'
-                          : 'Máš účet? Přihlas se'),
+                      child: Text(
+                        _isLogin
+                            ? 'Nemáš účet? Zaregistruj se'
+                            : 'Máš účet? Přihlas se',
+                      ),
                     ),
                   ],
                 ),
@@ -260,7 +268,9 @@ class ForgotPasswordDialog extends StatefulWidget {
 
 class _ForgotPasswordDialogState extends State<ForgotPasswordDialog> {
   final _authService = AuthService();
-  late final _emailController = TextEditingController(text: widget.initialEmail);
+  late final _emailController = TextEditingController(
+    text: widget.initialEmail,
+  );
 
   bool _loading = false;
   String _error = '';

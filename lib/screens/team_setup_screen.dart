@@ -61,10 +61,9 @@ class _TeamSetupScreenState extends State<TeamSetupScreen> {
         title: const Text('Přidat tým'),
         backgroundColor: Colors.transparent,
         foregroundColor: Colors.white,
-        titleTextStyle: Theme.of(context)
-            .textTheme
-            .titleLarge
-            ?.copyWith(color: Colors.white),
+        titleTextStyle: Theme.of(
+          context,
+        ).textTheme.titleLarge?.copyWith(color: Colors.white),
         systemOverlayStyle: SystemUiOverlayStyle.light,
         actions: const [LogoutButton()],
       ),
@@ -140,7 +139,8 @@ class _TeamSetupScreenState extends State<TeamSetupScreen> {
                             else
                               TextField(
                                 controller: _codeController,
-                                textCapitalization: TextCapitalization.characters,
+                                textCapitalization:
+                                    TextCapitalization.characters,
                                 decoration: const InputDecoration(
                                   labelText: 'Kód týmu',
                                   hintText: 'např. AB12CD34',

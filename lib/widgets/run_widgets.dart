@@ -156,7 +156,9 @@ class RunStats extends StatelessWidget {
         Text(
           '${formatDate(run.startedAt)} v ${formatTime(run.startedAt)}'
           '${pauses == 0 ? '' : ' · pauzy: $pauses'}',
-          style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
         ),
       ],
     );

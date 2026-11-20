@@ -161,10 +161,14 @@ class TrainingService {
 
   /// Nadcházející akce týmu (od dnešní půlnoci) seřazené podle začátku –
   /// nejbližší akce a další akce na záložce Přehled.
-  Stream<List<Training>> streamUpcoming(String teamId, {required bool isCoach}) {
+  Stream<List<Training>> streamUpcoming(
+    String teamId, {
+    required bool isCoach,
+  }) {
     final now = DateTime.now();
-    final todayStart =
-        Timestamp.fromDate(DateTime(now.year, now.month, now.day));
+    final todayStart = Timestamp.fromDate(
+      DateTime(now.year, now.month, now.day),
+    );
     return _streamVisible(
       teamId,
       isCoach,
@@ -239,14 +243,18 @@ class TrainingService {
     controller = StreamController<List<Training>>(
       onListen: () {
         subscriptions
-          ..add(a.listen((value) {
-            lastA = value;
-            emit();
-          }, onError: controller.addError))
-          ..add(b.listen((value) {
-            lastB = value;
-            emit();
-          }, onError: controller.addError));
+          ..add(
+            a.listen((value) {
+              lastA = value;
+              emit();
+            }, onError: controller.addError),
+          )
+          ..add(
+            b.listen((value) {
+              lastB = value;
+              emit();
+            }, onError: controller.addError),
+          );
       },
       onCancel: () => Future.wait(subscriptions.map((s) => s.cancel())),
     );
@@ -316,12 +324,14 @@ class TrainingService {
     };
 
     if (trainingId == null) {
-      return waitForServer(_trainings(teamId).doc().set({
-        ...data,
-        'responses': <String, String>{},
-        'createdBy': _uid,
-        'createdAt': FieldValue.serverTimestamp(),
-      }));
+      return waitForServer(
+        _trainings(teamId).doc().set({
+          ...data,
+          'responses': <String, String>{},
+          'createdBy': _uid,
+          'createdAt': FieldValue.serverTimestamp(),
+        }),
+      );
     }
 
     // Po změně druhu tréninku (společný <-> individuální) už dosavadní
@@ -362,7 +372,10 @@ class TrainingService {
   /// zrušením splnění smaže i hráčův záznam běhu, pokud nějaký má – trenér
   /// tak neuvidí běh u nesplněného tréninku.
   Future<void> respond(
-      String teamId, String trainingId, TrainingResponse? response) {
+    String teamId,
+    String trainingId,
+    TrainingResponse? response,
+  ) {
     final uid = _uid;
     final ref = _trainings(teamId).doc(trainingId);
     final batch = _db.batch()

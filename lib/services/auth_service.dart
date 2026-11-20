@@ -35,25 +35,28 @@ class AuthService {
 
   /// Česká hláška pro chybu z Firebase Auth podle jejího kódu.
   String _authErrorMessage(FirebaseAuthException e) => switch (e.code) {
-        'invalid-credential' || 'wrong-password' || 'user-not-found' =>
-          'Nesprávný e-mail nebo heslo',
-        'invalid-email' => 'Neplatný tvar e-mailu',
-        'email-already-in-use' =>
-          'Účet s tímto e-mailem už existuje – přihlas se',
-        'weak-password' => 'Heslo je příliš slabé – musí mít alespoň 6 znaků',
-        'user-disabled' => 'Tento účet je zablokovaný',
-        'too-many-requests' => 'Příliš mnoho pokusů, zkus to za chvíli',
-        'network-request-failed' => offlineMessage,
-        'popup-blocked' =>
-          'Prohlížeč zablokoval okno pro přihlášení – povol vyskakovací okna',
-        _ => 'Něco se nepovedlo (${e.code})',
-      };
+    'invalid-credential' ||
+    'wrong-password' ||
+    'user-not-found' => 'Nesprávný e-mail nebo heslo',
+    'invalid-email' => 'Neplatný tvar e-mailu',
+    'email-already-in-use' => 'Účet s tímto e-mailem už existuje – přihlas se',
+    'weak-password' => 'Heslo je příliš slabé – musí mít alespoň 6 znaků',
+    'user-disabled' => 'Tento účet je zablokovaný',
+    'too-many-requests' => 'Příliš mnoho pokusů, zkus to za chvíli',
+    'network-request-failed' => offlineMessage,
+    'popup-blocked' =>
+      'Prohlížeč zablokoval okno pro přihlášení – povol vyskakovací okna',
+    _ => 'Něco se nepovedlo (${e.code})',
+  };
 
   // Registrace email/heslo - jméno se ukládá do users/{uid} a v aplikaci se
   // zobrazuje místo e-mailu. Role se přiřadí až po vytvoření/připojení týmu
   // (viz TeamService), proto se zde neukládá.
   Future<UserCredential> register(
-      String name, String email, String password) async {
+    String name,
+    String email,
+    String password,
+  ) async {
     final trimmedName = _checkName(name);
     _checkFilled(email, password);
     if (password.length < 6) {
@@ -95,8 +98,9 @@ class AuthService {
   Future<UserCredential?> signInWithGoogle() async {
     final UserCredential? result;
     try {
-      result =
-          kIsWeb ? await _signInWithGoogleWeb() : await _signInWithGoogleApp();
+      result = kIsWeb
+          ? await _signInWithGoogleWeb()
+          : await _signInWithGoogleApp();
     } on FirebaseAuthException catch (e) {
       throw AppException(_authErrorMessage(e));
     } on PlatformException catch (e) {
@@ -170,15 +174,16 @@ class AuthService {
     if (user == null) throw AppException('Uživatel není přihlášen');
     final trimmedName = _checkName(name);
 
-    final teamsSnap =
-        await _db.collection('users').doc(user.uid).collection('teams').get();
+    final teamsSnap = await _db
+        .collection('users')
+        .doc(user.uid)
+        .collection('teams')
+        .get();
 
     final batch = _db.batch();
-    batch.set(
-      _db.collection('users').doc(user.uid),
-      {'name': trimmedName},
-      SetOptions(merge: true),
-    );
+    batch.set(_db.collection('users').doc(user.uid), {
+      'name': trimmedName,
+    }, SetOptions(merge: true));
     for (final teamDoc in teamsSnap.docs) {
       batch.update(
         _db
@@ -191,8 +196,14 @@ class AuthService {
     }
     // Jméno v účtu Firebase Auth je jen doplněk (aplikace čte jméno
     // z users/{uid}) a bez internetu se nezmění – proto se na něj nečeká.
-    unawaited(user.updateDisplayName(trimmedName).catchError(
-        (Object e) => debugPrint('Jméno v účtu Firebase Auth se nezměnilo: $e')));
+    unawaited(
+      user
+          .updateDisplayName(trimmedName)
+          .catchError(
+            (Object e) =>
+                debugPrint('Jméno v účtu Firebase Auth se nezměnilo: $e'),
+          ),
+    );
     return waitForServer(batch.commit());
   }
 
@@ -206,13 +217,17 @@ class AuthService {
 
   /// Zda má uživatel přihlášení e-mailem a heslem (Google účty heslo nemají).
   bool get hasPasswordLogin =>
-      _auth.currentUser?.providerData
-          .any((p) => p.providerId == EmailAuthProvider.PROVIDER_ID) ??
+      _auth.currentUser?.providerData.any(
+        (p) => p.providerId == EmailAuthProvider.PROVIDER_ID,
+      ) ??
       false;
 
   /// Změní heslo. Firebase vyžaduje nedávné přihlášení, proto se uživatel
   /// nejdřív znovu ověří současným heslem.
-  Future<void> changePassword(String currentPassword, String newPassword) async {
+  Future<void> changePassword(
+    String currentPassword,
+    String newPassword,
+  ) async {
     final user = _auth.currentUser;
     if (user == null || user.email == null) {
       throw AppException('Uživatel není přihlášen');

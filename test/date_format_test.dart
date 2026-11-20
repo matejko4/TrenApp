@@ -17,7 +17,10 @@ void main() {
     });
 
     test('s koncem ukáže rozsah', () {
-      expect(formatTimeRange(start, DateTime(2026, 1, 1, 18, 30)), '17:00–18:30');
+      expect(
+        formatTimeRange(start, DateTime(2026, 1, 1, 18, 30)),
+        '17:00–18:30',
+      );
     });
   });
 
@@ -71,22 +74,40 @@ void main() {
     final now = DateTime(2026, 11, 20, 14, 45);
 
     test('do hodiny v minutách', () {
-      expect(formatCountdown(DateTime(2026, 11, 20, 15, 0), now: now), 'za 15 min');
+      expect(
+        formatCountdown(DateTime(2026, 11, 20, 15, 0), now: now),
+        'za 15 min',
+      );
     });
 
     test('dnes v hodinách a minutách', () {
-      expect(formatCountdown(DateTime(2026, 11, 20, 17, 0), now: now), 'za 2 h 15 min');
-      expect(formatCountdown(DateTime(2026, 11, 20, 16, 45), now: now), 'za 2 h');
+      expect(
+        formatCountdown(DateTime(2026, 11, 20, 17, 0), now: now),
+        'za 2 h 15 min',
+      );
+      expect(
+        formatCountdown(DateTime(2026, 11, 20, 16, 45), now: now),
+        'za 2 h',
+      );
     });
 
     test('další dny podle kalendáře', () {
       expect(formatCountdown(DateTime(2026, 11, 21, 9, 0), now: now), 'zítra');
-      expect(formatCountdown(DateTime(2026, 11, 23, 9, 0), now: now), 'za 3 dny');
-      expect(formatCountdown(DateTime(2026, 11, 30, 9, 0), now: now), 'za 10 dní');
+      expect(
+        formatCountdown(DateTime(2026, 11, 23, 9, 0), now: now),
+        'za 3 dny',
+      );
+      expect(
+        formatCountdown(DateTime(2026, 11, 30, 9, 0), now: now),
+        'za 10 dní',
+      );
     });
 
     test('začatá akce právě probíhá', () {
-      expect(formatCountdown(DateTime(2026, 11, 20, 14, 0), now: now), 'právě probíhá');
+      expect(
+        formatCountdown(DateTime(2026, 11, 20, 14, 0), now: now),
+        'právě probíhá',
+      );
     });
   });
 }

@@ -47,8 +47,10 @@ class TeamOverviewTab extends StatefulWidget {
 class _TeamOverviewTabState extends State<TeamOverviewTab>
     with AutomaticKeepAliveClientMixin {
   final _trainingService = TrainingService();
-  late final Stream<List<Training>> _upcoming = _trainingService
-      .streamUpcoming(widget.teamId, isCoach: widget.isCoach);
+  late final Stream<List<Training>> _upcoming = _trainingService.streamUpcoming(
+    widget.teamId,
+    isCoach: widget.isCoach,
+  );
 
   late final DateTime _weekStart = startOfWeek(DateTime.now());
   late final Stream<List<Training>> _thisWeek = _trainingService

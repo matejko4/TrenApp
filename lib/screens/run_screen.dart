@@ -84,14 +84,19 @@ class _RunScreenState extends State<RunScreen> {
       (position) => setState(() {
         _gpsWarning = '';
         _tracker.addPosition(
-            position.latitude, position.longitude, position.accuracy);
+          position.latitude,
+          position.longitude,
+          position.accuracy,
+        );
       }),
       onError: (Object e) {
         debugPrint('Chyba GPS během běhu: $e');
         if (!mounted) return;
-        setState(() => _gpsWarning = e is LocationServiceDisabledException
-            ? 'Poloha v telefonu je vypnutá – zapni ji, ať se běh zaznamenává dál.'
-            : 'Signál GPS se ztratil.');
+        setState(
+          () => _gpsWarning = e is LocationServiceDisabledException
+              ? 'Poloha v telefonu je vypnutá – zapni ji, ať se běh zaznamenává dál.'
+              : 'Signál GPS se ztratil.',
+        );
       },
     );
     // GPS při stání nic neposílá – hodiny na displeji překresluje Timer.
@@ -125,11 +130,15 @@ class _RunScreenState extends State<RunScreen> {
       final messenger = ScaffoldMessenger.of(context);
       _saved = true;
       Navigator.of(context).pop();
-      messenger.showSnackBar(SnackBar(
-        content: Text(sent
-            ? 'Běh uložen'
-            : 'Běh je uložený v telefonu, odešle se, až budeš online.'),
-      ));
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            sent
+                ? 'Běh uložen'
+                : 'Běh je uložený v telefonu, odešle se, až budeš online.',
+          ),
+        ),
+      );
     } catch (e) {
       // Běh zůstává na obrazovce, aby se při chybě neztratil.
       if (mounted) {
@@ -185,8 +194,10 @@ class _RunScreenState extends State<RunScreen> {
                 Flexible(
                   flex: 8,
                   child: ConstrainedBox(
-                    constraints:
-                        const BoxConstraints(maxWidth: 260, maxHeight: 260),
+                    constraints: const BoxConstraints(
+                      maxWidth: 260,
+                      maxHeight: 260,
+                    ),
                     child: AspectRatio(
                       aspectRatio: 1,
                       child: AnimatedContainer(
@@ -272,21 +283,18 @@ class _RunScreenState extends State<RunScreen> {
   }
 
   String _statusText() => switch (_state) {
-        RunState.ready =>
-          'Telefon můžeš během běhu zhasnout, záznam poběží dál.',
-        RunState.running =>
-          _tracker.hasFix ? 'Běžíš' : 'Hledám signál GPS…',
-        RunState.paused => 'Pauza',
-        RunState.finished => 'Běh dokončen',
-      };
+    RunState.ready => 'Telefon můžeš během běhu zhasnout, záznam poběží dál.',
+    RunState.running => _tracker.hasFix ? 'Běžíš' : 'Hledám signál GPS…',
+    RunState.paused => 'Pauza',
+    RunState.finished => 'Běh dokončen',
+  };
 
   Color _statusColor() => switch (_state) {
-        RunState.ready => AppColors.planned,
-        RunState.running =>
-          _tracker.hasFix ? AppColors.success : AppColors.warning,
-        RunState.paused => AppColors.warning,
-        RunState.finished => AppColors.team,
-      };
+    RunState.ready => AppColors.planned,
+    RunState.running => _tracker.hasFix ? AppColors.success : AppColors.warning,
+    RunState.paused => AppColors.warning,
+    RunState.finished => AppColors.team,
+  };
 
   Widget _buildButtons() {
     if (_starting || _saving) {
@@ -303,45 +311,45 @@ class _RunScreenState extends State<RunScreen> {
     );
     return switch (_state) {
       RunState.ready => _BigButton(
-          label: 'Start',
+        label: 'Start',
+        icon: Icons.play_arrow,
+        color: AppColors.success,
+        onPressed: _start,
+      ),
+      RunState.running => _ButtonRow(
+        left: _BigButton(
+          label: 'Pauza',
+          icon: Icons.pause,
+          color: AppColors.warning,
+          outlined: true,
+          onPressed: () => setState(_tracker.pause),
+        ),
+        right: stop,
+      ),
+      RunState.paused => _ButtonRow(
+        left: _BigButton(
+          label: 'Pokračovat',
           icon: Icons.play_arrow,
           color: AppColors.success,
-          onPressed: _start,
+          onPressed: () => setState(_tracker.resume),
         ),
-      RunState.running => _ButtonRow(
-          left: _BigButton(
-            label: 'Pauza',
-            icon: Icons.pause,
-            color: AppColors.warning,
-            outlined: true,
-            onPressed: () => setState(_tracker.pause),
-          ),
-          right: stop,
-        ),
-      RunState.paused => _ButtonRow(
-          left: _BigButton(
-            label: 'Pokračovat',
-            icon: Icons.play_arrow,
-            color: AppColors.success,
-            onPressed: () => setState(_tracker.resume),
-          ),
-          right: stop,
-        ),
+        right: stop,
+      ),
       RunState.finished => _ButtonRow(
-          left: _BigButton(
-            label: 'Zahodit',
-            icon: Icons.delete_outline,
-            color: AppColors.danger,
-            outlined: true,
-            onPressed: _confirmDiscard,
-          ),
-          right: _BigButton(
-            label: 'Uložit běh',
-            icon: Icons.save,
-            color: AppColors.brand,
-            onPressed: _save,
-          ),
+        left: _BigButton(
+          label: 'Zahodit',
+          icon: Icons.delete_outline,
+          color: AppColors.danger,
+          outlined: true,
+          onPressed: _confirmDiscard,
         ),
+        right: _BigButton(
+          label: 'Uložit běh',
+          icon: Icons.save,
+          color: AppColors.brand,
+          onPressed: _save,
+        ),
+      ),
     };
   }
 }

@@ -47,23 +47,23 @@ abstract final class AppColors {
   /// Výraznější přechod přes celou obrazovku (přihlášení, nastavení týmu).
   static LinearGradient backgroundGradient(Brightness brightness) =>
       brightness == Brightness.dark
-          ? const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color(0xFF1E1B4B), Color(0xFF2E1065), Color(0xFF4A044E)],
-            )
-          : const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [brand, violet, fuchsia],
-            );
+      ? const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF1E1B4B), Color(0xFF2E1065), Color(0xFF4A044E)],
+        )
+      : const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [brand, violet, fuchsia],
+        );
 
   /// Barva [color] jako text nebo ikona – v tmavém režimu se zesvětlí,
   /// aby byla na tmavém pozadí dobře čitelná.
   static Color readable(BuildContext context, Color color) =>
       Theme.of(context).brightness == Brightness.dark
-          ? Color.lerp(color, Colors.white, 0.35)!
-          : color;
+      ? Color.lerp(color, Colors.white, 0.35)!
+      : color;
 
   /// Přechod pro hráče (zelenomodrá).
   static const playerGradient = LinearGradient(
@@ -81,25 +81,29 @@ abstract final class AppColors {
 /// barvami pozadí a povrchů.
 abstract final class AppTheme {
   static ThemeData get light => _build(
-        brightness: Brightness.light,
-        background: const Color(0xFFF3F4F9),
-        surfaces: const [
-          // surface, Lowest, Low, Container, High, Highest
-          Color(0xFFFFFFFF), Color(0xFFFFFFFF), Color(0xFFF7F8FC),
-          Color(0xFFF0F2F8), Color(0xFFEAEDF5), Color(0xFFE3E7F1),
-        ],
-        outlineVariant: const Color(0xFFE3E6EF),
-      );
+    brightness: Brightness.light,
+    background: const Color(0xFFF3F4F9),
+    surfaces: const [
+      // surface, Lowest, Low, Container, High, Highest
+      Color(0xFFFFFFFF), Color(0xFFFFFFFF), Color(0xFFF7F8FC),
+      Color(0xFFF0F2F8), Color(0xFFEAEDF5), Color(0xFFE3E7F1),
+    ],
+    outlineVariant: const Color(0xFFE3E6EF),
+  );
 
   static ThemeData get dark => _build(
-        brightness: Brightness.dark,
-        background: const Color(0xFF0B0D12),
-        surfaces: const [
-          Color(0xFF161922), Color(0xFF0F1117), Color(0xFF1A1E28),
-          Color(0xFF1F2330), Color(0xFF252A38), Color(0xFF2C3242),
-        ],
-        outlineVariant: const Color(0xFF2A2F3D),
-      );
+    brightness: Brightness.dark,
+    background: const Color(0xFF0B0D12),
+    surfaces: const [
+      Color(0xFF161922),
+      Color(0xFF0F1117),
+      Color(0xFF1A1E28),
+      Color(0xFF1F2330),
+      Color(0xFF252A38),
+      Color(0xFF2C3242),
+    ],
+    outlineVariant: const Color(0xFF2A2F3D),
+  );
 
   static ThemeData _build({
     required Brightness brightness,
@@ -113,23 +117,24 @@ abstract final class AppTheme {
     // drží barvy blízko zadané značce, místo aby je zesvětlila do pastelu.
     // Povrchy (karty, lišty, dialogy) přepisujeme vlastními neutrálními
     // odstíny, aby nebyly do fialova.
-    final colors = ColorScheme.fromSeed(
-      seedColor: AppColors.brand,
-      brightness: brightness,
-      dynamicSchemeVariant: DynamicSchemeVariant.fidelity,
-    ).copyWith(
-      primary: isDark ? const Color(0xFF8C8CFF) : AppColors.brand,
-      onPrimary: isDark ? const Color(0xFF14104A) : Colors.white,
-      error: isDark ? const Color(0xFFF87171) : AppColors.danger,
-      surface: surfaces[0],
-      surfaceContainerLowest: surfaces[1],
-      surfaceContainerLow: surfaces[2],
-      surfaceContainer: surfaces[3],
-      surfaceContainerHigh: surfaces[4],
-      surfaceContainerHighest: surfaces[5],
-      outlineVariant: outlineVariant,
-      surfaceTint: Colors.transparent,
-    );
+    final colors =
+        ColorScheme.fromSeed(
+          seedColor: AppColors.brand,
+          brightness: brightness,
+          dynamicSchemeVariant: DynamicSchemeVariant.fidelity,
+        ).copyWith(
+          primary: isDark ? const Color(0xFF8C8CFF) : AppColors.brand,
+          onPrimary: isDark ? const Color(0xFF14104A) : Colors.white,
+          error: isDark ? const Color(0xFFF87171) : AppColors.danger,
+          surface: surfaces[0],
+          surfaceContainerLowest: surfaces[1],
+          surfaceContainerLow: surfaces[2],
+          surfaceContainer: surfaces[3],
+          surfaceContainerHigh: surfaces[4],
+          surfaceContainerHighest: surfaces[5],
+          outlineVariant: outlineVariant,
+          surfaceTint: Colors.transparent,
+        );
 
     final base = ThemeData(
       useMaterial3: true,
@@ -139,22 +144,33 @@ abstract final class AppTheme {
 
     // Nadpisy tučnější a s menšími mezerami mezi písmeny – moderní vzhled.
     final text = base.textTheme.copyWith(
-      headlineMedium: base.textTheme.headlineMedium
-          ?.copyWith(fontWeight: FontWeight.w800, letterSpacing: -0.5),
-      headlineSmall: base.textTheme.headlineSmall
-          ?.copyWith(fontWeight: FontWeight.w800, letterSpacing: -0.5),
-      titleLarge: base.textTheme.titleLarge
-          ?.copyWith(fontWeight: FontWeight.w800, letterSpacing: -0.3),
-      titleMedium: base.textTheme.titleMedium
-          ?.copyWith(fontWeight: FontWeight.w700),
-      titleSmall: base.textTheme.titleSmall
-          ?.copyWith(fontWeight: FontWeight.w700),
-      labelLarge: base.textTheme.labelLarge
-          ?.copyWith(fontWeight: FontWeight.w700, letterSpacing: 0.2),
+      headlineMedium: base.textTheme.headlineMedium?.copyWith(
+        fontWeight: FontWeight.w800,
+        letterSpacing: -0.5,
+      ),
+      headlineSmall: base.textTheme.headlineSmall?.copyWith(
+        fontWeight: FontWeight.w800,
+        letterSpacing: -0.5,
+      ),
+      titleLarge: base.textTheme.titleLarge?.copyWith(
+        fontWeight: FontWeight.w800,
+        letterSpacing: -0.3,
+      ),
+      titleMedium: base.textTheme.titleMedium?.copyWith(
+        fontWeight: FontWeight.w700,
+      ),
+      titleSmall: base.textTheme.titleSmall?.copyWith(
+        fontWeight: FontWeight.w700,
+      ),
+      labelLarge: base.textTheme.labelLarge?.copyWith(
+        fontWeight: FontWeight.w700,
+        letterSpacing: 0.2,
+      ),
     );
 
-    final rounded16 =
-        RoundedRectangleBorder(borderRadius: BorderRadius.circular(16));
+    final rounded16 = RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(16),
+    );
     const buttonPadding = EdgeInsets.symmetric(horizontal: 20, vertical: 14);
 
     OutlineInputBorder inputBorder(Color color, [double width = 1]) =>
@@ -186,8 +202,9 @@ abstract final class AppTheme {
         centerTitle: false,
         titleTextStyle: text.titleLarge?.copyWith(color: colors.onSurface),
         // Barva ikon ve stavovém řádku telefonu (hodiny, baterie).
-        systemOverlayStyle:
-            isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
+        systemOverlayStyle: isDark
+            ? SystemUiOverlayStyle.light
+            : SystemUiOverlayStyle.dark,
       ),
 
       // Karty bez stínu, s jemným okrajem a víc zakulacené.
@@ -205,8 +222,10 @@ abstract final class AppTheme {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: colors.surface,
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
         border: inputBorder(outlineVariant),
         enabledBorder: inputBorder(outlineVariant),
         focusedBorder: inputBorder(colors.primary, 2),
@@ -223,7 +242,10 @@ abstract final class AppTheme {
         ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
-        style: ElevatedButton.styleFrom(shape: rounded16, padding: buttonPadding),
+        style: ElevatedButton.styleFrom(
+          shape: rounded16,
+          padding: buttonPadding,
+        ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
@@ -352,9 +374,7 @@ abstract final class AppTheme {
         splashBorderRadius: BorderRadius.circular(12),
       ),
 
-      progressIndicatorTheme: ProgressIndicatorThemeData(
-        color: colors.primary,
-      ),
+      progressIndicatorTheme: ProgressIndicatorThemeData(color: colors.primary),
     );
   }
 }
@@ -428,7 +448,11 @@ class GradientBackground extends StatelessWidget {
         child: Stack(
           children: [
             const Positioned(top: -80, right: -60, child: _Bubble(size: 260)),
-            const Positioned(bottom: -100, left: -80, child: _Bubble(size: 320)),
+            const Positioned(
+              bottom: -100,
+              left: -80,
+              child: _Bubble(size: 320),
+            ),
             Positioned.fill(child: child),
           ],
         ),
@@ -455,8 +479,9 @@ class GradientCard extends StatelessWidget {
   Widget build(BuildContext context) {
     // Stín v barvě přechodu (u zelenomodré karty zelenomodrý).
     final gradient = this.gradient;
-    final shadow =
-        gradient is LinearGradient ? gradient.colors.last : AppColors.brand;
+    final shadow = gradient is LinearGradient
+        ? gradient.colors.last
+        : AppColors.brand;
     return Container(
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(

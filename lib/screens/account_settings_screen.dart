@@ -18,9 +18,7 @@ class AccountSettingsScreen extends StatelessWidget {
     final colors = Theme.of(context).colorScheme;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Nastavení účtu'),
-      ),
+      appBar: AppBar(title: const Text('Nastavení účtu')),
       // Jméno se čte z users/{uid} (ne z účtu Firebase Auth), protože se
       // tam změní hned, i bez internetu – viz AuthService.updateName.
       body: StreamBuilder<String?>(
@@ -87,59 +85,67 @@ class AccountSettingsScreen extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               const _GroupTitle('Profil'),
-              _Group(children: [
-                ListTile(
-                  leading: const Icon(Icons.badge_outlined),
-                  title: const Text('Změnit jméno'),
-                  subtitle: Text(name.isNotEmpty ? name : 'Nevyplněno'),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => showDialog(
-                    context: context,
-                    builder: (_) => EditNameDialog(currentName: name),
-                  ),
-                ),
-              ]),
-              const _GroupTitle('Vzhled'),
-              const _Group(children: [_ThemeModePicker()]),
-              const _GroupTitle('Zabezpečení'),
-              _Group(children: [
-                if (hasPassword) ...[
+              _Group(
+                children: [
                   ListTile(
-                    leading: const Icon(Icons.lock_outline),
-                    title: const Text('Změnit heslo'),
+                    leading: const Icon(Icons.badge_outlined),
+                    title: const Text('Změnit jméno'),
+                    subtitle: Text(name.isNotEmpty ? name : 'Nevyplněno'),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: () => showDialog(
                       context: context,
-                      builder: (_) => const ChangePasswordDialog(),
+                      builder: (_) => EditNameDialog(currentName: name),
                     ),
                   ),
-                  ListTile(
-                    leading: const Icon(Icons.mail_outline),
-                    title: const Text('Zapomenuté heslo'),
-                    subtitle: const Text('Pošle odkaz pro obnovení na e-mail'),
-                    onTap: () => _sendPasswordReset(context, authService),
-                  ),
-                ] else
-                  const ListTile(
-                    leading: Icon(Icons.g_mobiledata),
-                    title: Text('Přihlášení přes Google'),
-                    subtitle: Text('Heslo se spravuje ve tvém Google účtu.'),
-                  ),
-              ]),
+                ],
+              ),
+              const _GroupTitle('Vzhled'),
+              const _Group(children: [_ThemeModePicker()]),
+              const _GroupTitle('Zabezpečení'),
+              _Group(
+                children: [
+                  if (hasPassword) ...[
+                    ListTile(
+                      leading: const Icon(Icons.lock_outline),
+                      title: const Text('Změnit heslo'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => showDialog(
+                        context: context,
+                        builder: (_) => const ChangePasswordDialog(),
+                      ),
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.mail_outline),
+                      title: const Text('Zapomenuté heslo'),
+                      subtitle: const Text(
+                        'Pošle odkaz pro obnovení na e-mail',
+                      ),
+                      onTap: () => _sendPasswordReset(context, authService),
+                    ),
+                  ] else
+                    const ListTile(
+                      leading: Icon(Icons.g_mobiledata),
+                      title: Text('Přihlášení přes Google'),
+                      subtitle: Text('Heslo se spravuje ve tvém Google účtu.'),
+                    ),
+                ],
+              ),
               const SizedBox(height: 16),
-              _Group(children: [
-                ListTile(
-                  leading: Icon(Icons.logout, color: colors.error),
-                  title: Text(
-                    'Odhlásit se',
-                    style: TextStyle(
-                      color: colors.error,
-                      fontWeight: FontWeight.w600,
+              _Group(
+                children: [
+                  ListTile(
+                    leading: Icon(Icons.logout, color: colors.error),
+                    title: Text(
+                      'Odhlásit se',
+                      style: TextStyle(
+                        color: colors.error,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
+                    onTap: () => logOut(context),
                   ),
-                  onTap: () => logOut(context),
-                ),
-              ]),
+                ],
+              ),
             ],
           );
         },
@@ -149,20 +155,21 @@ class AccountSettingsScreen extends StatelessWidget {
   }
 
   Future<void> _sendPasswordReset(
-      BuildContext context, AuthService authService) async {
+    BuildContext context,
+    AuthService authService,
+  ) async {
     final messenger = ScaffoldMessenger.of(context);
     try {
       await authService.sendPasswordReset();
       messenger.showSnackBar(
         SnackBar(
           content: Text(
-              'Odkaz pro obnovení hesla odeslán na ${authService.currentUser?.email}'),
+            'Odkaz pro obnovení hesla odeslán na ${authService.currentUser?.email}',
+          ),
         ),
       );
     } catch (e) {
-      messenger.showSnackBar(
-        SnackBar(content: Text(errorText(e))),
-      );
+      messenger.showSnackBar(SnackBar(content: Text(errorText(e))));
     }
   }
 }
@@ -281,10 +288,13 @@ class _EditNameDialogState extends State<EditNameDialog> {
       final messenger = ScaffoldMessenger.of(context);
       Navigator.of(context).pop();
       if (!sent) {
-        messenger.showSnackBar(const SnackBar(
-          content: Text(
-              'Jméno je uložené v telefonu, odešle se, až budeš online.'),
-        ));
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Jméno je uložené v telefonu, odešle se, až budeš online.',
+            ),
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -388,8 +398,11 @@ class _ChangePasswordDialogState extends State<ChangePasswordDialog> {
     }
   }
 
-  Widget _passwordField(TextEditingController controller, String label,
-      {bool autofocus = false}) {
+  Widget _passwordField(
+    TextEditingController controller,
+    String label, {
+    bool autofocus = false,
+  }) {
     return TextField(
       controller: controller,
       obscureText: true,
@@ -406,8 +419,11 @@ class _ChangePasswordDialogState extends State<ChangePasswordDialog> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _passwordField(_currentController, 'Současné heslo',
-                autofocus: true),
+            _passwordField(
+              _currentController,
+              'Současné heslo',
+              autofocus: true,
+            ),
             const SizedBox(height: 12),
             _passwordField(_newController, 'Nové heslo'),
             const SizedBox(height: 12),

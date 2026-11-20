@@ -71,11 +71,14 @@ void main() {
   });
 
   group('Individuální trénink – stav hráče', () {
-    test('dnešní trénink bez splnění je naplánovaný (splnit jde do půlnoci)', () {
-      final training = makeTraining(startAt: todayEarly);
-      expect(training.isOver, isFalse);
-      expect(training.statusOf('hrac'), IndividualStatus.planned);
-    });
+    test(
+      'dnešní trénink bez splnění je naplánovaný (splnit jde do půlnoci)',
+      () {
+        final training = makeTraining(startAt: todayEarly);
+        expect(training.isOver, isFalse);
+        expect(training.statusOf('hrac'), IndividualStatus.planned);
+      },
+    );
 
     test('splněný trénink je splněný, i když už jeho den uplynul', () {
       final training = makeTraining(

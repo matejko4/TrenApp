@@ -38,8 +38,10 @@ class TrainingDetailScreen extends StatefulWidget {
 
 class _TrainingDetailScreenState extends State<TrainingDetailScreen> {
   final _trainingService = TrainingService();
-  late final Stream<Training?> _training =
-      _trainingService.streamTraining(widget.teamId, widget.trainingId);
+  late final Stream<Training?> _training = _trainingService.streamTraining(
+    widget.teamId,
+    widget.trainingId,
+  );
   late final Stream<QuerySnapshot<Map<String, dynamic>>>? _members =
       widget.isCoach ? TeamService().streamTeamMembers(widget.teamId) : null;
   // Hráčův vlastní běh (jen jeden dokument). Trenér běhy předem nenačítá –
@@ -53,7 +55,8 @@ class _TrainingDetailScreenState extends State<TrainingDetailScreen> {
     final confirmed = await confirmDialog(
       context,
       title: training.isMatch ? 'Smazat zápas' : 'Smazat trénink',
-      message: 'Opravdu chceš smazat ${training.isMatch ? 'zápas' : 'trénink'} '
+      message:
+          'Opravdu chceš smazat ${training.isMatch ? 'zápas' : 'trénink'} '
           '"${training.title}"?',
       confirmLabel: 'Smazat',
     );
@@ -66,9 +69,9 @@ class _TrainingDetailScreenState extends State<TrainingDetailScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _deleting = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(errorText(e))),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(errorText(e))));
     }
   }
 
@@ -155,7 +158,10 @@ class _TrainingDetailScreenState extends State<TrainingDetailScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
             child: Column(
               children: [
-                _InfoTile(icon: Icons.event, text: formatDate(training.startAt)),
+                _InfoTile(
+                  icon: Icons.event,
+                  text: formatDate(training.startAt),
+                ),
                 _InfoTile(
                   icon: Icons.schedule,
                   text: formatTimeRange(training.startAt, training.endAt),
@@ -195,9 +201,9 @@ class _TrainingDetailScreenState extends State<TrainingDetailScreen> {
   /// Kdo na společný trénink přijde, nepřijde a kdo ještě neodpověděl.
   Widget _buildTeamOverview(Training training, Map<String, String> players) {
     List<String> namesWith(TrainingResponse response) => [
-          for (final entry in players.entries)
-            if (training.responses[entry.key] == response) entry.value,
-        ]..sort();
+      for (final entry in players.entries)
+        if (training.responses[entry.key] == response) entry.value,
+    ]..sort();
 
     final yes = namesWith(TrainingResponse.yes);
     final no = namesWith(TrainingResponse.no);
@@ -299,7 +305,9 @@ class _TrainingDetailScreenState extends State<TrainingDetailScreen> {
   /// Stav individuálního tréninku u každého hráče, kterému je zadaný.
   /// U běhu jde řádek hráče otevřít – mapa a údaje o jeho běhu.
   Widget _buildIndividualOverview(
-      Training training, Map<String, String> players) {
+    Training training,
+    Map<String, String> players,
+  ) {
     // Hráči, kteří mezitím z týmu odešli, se nezobrazují.
     final assigned = training.assignedTo.where(players.containsKey).toList()
       ..sort((a, b) => players[a]!.compareTo(players[b]!));

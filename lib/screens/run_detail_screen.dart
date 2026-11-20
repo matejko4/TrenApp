@@ -30,8 +30,11 @@ class RunDetailScreen extends StatefulWidget {
 }
 
 class _RunDetailScreenState extends State<RunDetailScreen> {
-  late final Stream<Run?> _run =
-      RunService().streamRun(widget.teamId, widget.trainingId, widget.uid);
+  late final Stream<Run?> _run = RunService().streamRun(
+    widget.teamId,
+    widget.trainingId,
+    widget.uid,
+  );
 
   @override
   Widget build(BuildContext context) {

@@ -19,11 +19,11 @@ class RunPoint {
   /// Bod z databáze. Čísla se převádějí přes num – Firestore celé číslo
   /// (např. souřadnici 50) vrátí jako int, ne double.
   factory RunPoint.fromMap(Map<String, dynamic> map) => RunPoint(
-        lat: (map['lat'] as num).toDouble(),
-        lng: (map['lng'] as num).toDouble(),
-        t: (map['t'] as num).toInt(),
-        s: (map['s'] as num).toInt(),
-      );
+    lat: (map['lat'] as num).toDouble(),
+    lng: (map['lng'] as num).toDouble(),
+    t: (map['t'] as num).toInt(),
+    s: (map['s'] as num).toInt(),
+  );
 
   final double lat;
   final double lng;
@@ -91,12 +91,12 @@ class Run {
 
   /// Celá čísla – bezpečnostní pravidla kontrolují `is int`.
   Map<String, dynamic> toMap() => {
-        'startedAt': Timestamp.fromDate(startedAt),
-        'endedAt': Timestamp.fromDate(endedAt),
-        'durationSeconds': durationSeconds,
-        'distanceMeters': distanceMeters,
-        'points': [for (final point in points) point.toMap()],
-      };
+    'startedAt': Timestamp.fromDate(startedAt),
+    'endedAt': Timestamp.fromDate(endedAt),
+    'durationSeconds': durationSeconds,
+    'distanceMeters': distanceMeters,
+    'points': [for (final point in points) point.toMap()],
+  };
 }
 
 /// Záznam běhu přes GPS: oprávnění k poloze, proud polohy a uložení.
@@ -120,16 +120,19 @@ class RunService {
   }
 
   DocumentReference<Map<String, dynamic>> _training(
-          String teamId, String trainingId) =>
-      _db
-          .collection('teams')
-          .doc(teamId)
-          .collection('trainings')
-          .doc(trainingId);
+    String teamId,
+    String trainingId,
+  ) => _db
+      .collection('teams')
+      .doc(teamId)
+      .collection('trainings')
+      .doc(trainingId);
 
   DocumentReference<Map<String, dynamic>> _run(
-          String teamId, String trainingId, String uid) =>
-      _training(teamId, trainingId).collection('runs').doc(uid);
+    String teamId,
+    String trainingId,
+    String uid,
+  ) => _training(teamId, trainingId).collection('runs').doc(uid);
 
   /// Ověří, že je v telefonu zapnutá poloha a aplikace k ní smí – podle
   /// potřeby si o oprávnění řekne. Jinak vyhodí [AppException] s českou
@@ -147,8 +150,10 @@ class RunService {
       case LocationPermission.always:
         return;
       case LocationPermission.deniedForever:
-        throw AppException('Přístup k poloze je zakázaný. Povol ho '
-            'v Nastavení telefonu → Aplikace → TrenApp → Oprávnění.');
+        throw AppException(
+          'Přístup k poloze je zakázaný. Povol ho '
+          'v Nastavení telefonu → Aplikace → TrenApp → Oprávnění.',
+        );
       case LocationPermission.denied:
       case LocationPermission.unableToDetermine:
         throw AppException('Bez přístupu k poloze nejde běh zaznamenat.');
@@ -205,9 +210,11 @@ class RunService {
   /// trénink splnil ručně). Každý dokument nese celou trasu, proto se
   /// načítá jen běh, který si někdo otevře, ne všechny najednou.
   Stream<Run?> streamRun(String teamId, String trainingId, String uid) {
-    return _run(teamId, trainingId, uid)
-        .snapshots()
-        .map((doc) => doc.exists ? Run.fromDoc(doc) : null);
+    return _run(
+      teamId,
+      trainingId,
+      uid,
+    ).snapshots().map((doc) => doc.exists ? Run.fromDoc(doc) : null);
   }
 
   /// Stream běhu přihlášeného hráče.
