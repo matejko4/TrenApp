@@ -59,6 +59,7 @@ Kdo tým založí, stane se jeho správcem. Správce má všechna oprávnění t
 
 - povyšovat hráče na trenéry a trenéry měnit na hráče nebo odebírat z týmu,
 - předat vedení týmu jinému členovi (hráč se tím zároveň stane trenérem),
+- vytvořit nový pozvánkový kód (starý přestane platit),
 - zrušit celý tým.
 
 ## 3. Týmy a role
@@ -74,6 +75,7 @@ Pravidla týmů:
 - název týmu musí být unikátní – nerozlišují se mezery navíc ani velká a malá písmena A–Z (písmena s diakritikou se rozlišují, „ČEZ“ a „čez“ jsou dva týmy); hlídá to přímo databáze, protože upravený název je zároveň ID dokumentu týmu,
 - k týmu se jde připojit jen se správným pozvánkovým kódem – kód ověřují bezpečnostní pravidla, samotná znalost ID týmu nestačí,
 - každý tým má unikátní osmimístný pozvánkový kód (bez snadno zaměnitelných znaků jako 0/O nebo 1/I),
+- správce může kód kdykoli vyměnit za nový – starý kód přestane platit a nikdo se s ním už nepřipojí (hodí se, když kód unikne, nebo když se odebraný hráč nemá mít jak vrátit); členové týmu v něm zůstanou,
 - správce týmu nelze změnit na hráče ani odebrat – tým tak nikdy nezůstane bez někoho, kdo ho spravuje,
 - správce může vedení předat jinému členovi týmu (původní správce zůstane trenérem),
 - zrušit tým může jen správce.
@@ -274,7 +276,7 @@ Obsahuje:
 - jméno (zobrazuje se v aplikaci místo e-mailu)
 - datum registrace
 
-E-mail se sem neukládá – přihlášení i obnova hesla používají e-mail z účtu ve Firebase Authentication a profil `users/{uid}` si může přečíst kterýkoli přihlášený uživatel.
+E-mail se sem neukládá – přihlášení i obnova hesla používají e-mail z účtu ve Firebase Authentication. Profil `users/{uid}` čte jen uživatel sám – ostatním se jméno zobrazuje z kopie na soupisce týmu.
 
 ### users/{uid}/teams/{teamId}
 
@@ -285,7 +287,7 @@ Obsahuje:
 - ID týmu
 - název týmu
 - roli uživatele v týmu
-- pozvánkový kód (pouze u trenéra)
+- pozvánkový kód (pouze u trenéra – dostane ho zakladatel týmu, každý povýšený trenér a při výměně kódu všichni trenéři)
 - datum připojení
 
 ### teams/{teamId}
@@ -382,7 +384,7 @@ Aplikace využívá systém oprávnění vázaný na konkrétní tým.
 | vidět běhy hráčů (mapa trasy, čas, tempo) | ✓ | ✓ | – |
 | sdílet pozvánkový kód, odebírat hráče | ✓ | ✓ | – |
 | jmenovat trenéry, měnit je na hráče a odebírat | ✓ | – | – |
-| předat vedení týmu, zrušit tým | ✓ | – | – |
+| předat vedení týmu, vytvořit nový kód, zrušit tým | ✓ | – | – |
 
 Hráč nemá přístup ke správě týmu, nemůže zadávat tréninky a nevidí individuální tréninky ostatních hráčů. Všechna oprávnění vynucují Firestore Security Rules a ověřují je automatické testy (kapitola 16).
 
@@ -455,9 +457,12 @@ Aplikace obsahuje základní bezpečnostní prvky:
 - přístup k datům týmu pouze pro jeho členy,
 - úpravy týmu a soupisky pouze pro trenéry,
 - zákaz hromadného vypsání pozvánkových kódů; připojení k týmu jen se správným kódem ověřeným pravidly,
+- správce může kód vyměnit za nový, když unikne – starý kód přestane platit (i pro odebrané hráče, kteří ho znají),
 - ochrana správce týmu před odebráním nebo degradací; předat vedení a zrušit tým smí jen správce,
-- název a kód týmu nejde po založení měnit,
-- validace vstupních údajů.
+- trenér smí jinému členovi smazat záznam v přehledu týmů jen spolu s jeho členstvím – nemůže tak nikomu (ani správci) tým „schovat“,
+- profil uživatele (`users/{uid}`) čte jen on sám – seznam všech uživatelů aplikace nejde vypsat,
+- název týmu nejde po založení měnit,
+- validace vstupních údajů v aplikaci i v pravidlech (např. jméno musí být text o 1–40 znacích – jinak by šlo uložit třeba číslo a ostatním členům by se detail týmu nezobrazil).
 
 ## 15. Instalace
 
@@ -565,7 +570,8 @@ Projekt má dvě sady automatických testů.
 - trenéry jmenuje, mění na hráče a odebírá jen správce; trenér smí odebrat jen hráče,
 - správce týmu nejde změnit na hráče ani odebrat; vedení předá a tým zruší jen on,
 - vedení jde předat jen členovi týmu, který je (nebo se stejnou dávkou stane) trenérem,
-- název ani kód týmu nejde po založení přepsat,
+- název týmu nejde po založení přepsat a kód ani správce nezmění jinak než výměnou i v `team_codes`,
+- profil uživatele přečte jen on sám,
 - nečlen nevidí tým, soupisku ani tréninky; pozvánkové kódy nejde hromadně vypsat,
 - tým se zakládá v jedné dávce (tým, kód, členství správce) a kód nejde vytvořit pro cizí tým,
 - hráč vidí jen společné tréninky a individuální tréninky zadané jemu; zápas jde zadat jen pro celý tým,

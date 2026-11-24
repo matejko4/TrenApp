@@ -53,6 +53,7 @@ Map<String, String> playerNames(
 /// - teams/{teamId}/members/{uid}        – roster týmu (jméno, role, kdy se přidal,
 ///                                          u hráče kód, kterým se připojil)
 /// - users/{uid}/teams/{teamId}          – rychlý přehled týmů daného uživatele a jeho role v nich
+///                                          (u trenéra i kód týmu)
 /// - team_codes/{code}                   – mapování pozvánkového kódu na tým (viz níže)
 ///
 /// Do soupisky se neukládá e-mail – soupisku čtou všichni členové týmu
@@ -167,6 +168,9 @@ class TeamService {
         'role': TeamRole.coach.name,
         // Kód se ukládá i sem, aby ho trenér viděl přímo na HomeScreen a
         // mohl ho sdílet s hráči, aniž by se muselo číst z teams/{teamId}.
+        // Mají ho tu všichni trenéři týmu – ostatní ho dostanou při
+        // povýšení (updateMemberRole, transferOwnership) a nový kód
+        // dostanou všichni najednou (changeCode).
         'code': code,
         'joinedAt': FieldValue.serverTimestamp(),
       },
@@ -277,17 +281,17 @@ class TeamService {
   /// Kromě záznamu v rosteru (teams/{teamId}/members/{uid}) se role
   /// aktualizuje i v indexu users/{uid}/teams/{teamId}, aby zůstala
   /// konzistentní i tam, odkud si daný uživatel čte přehled svých týmů.
+  /// Nový trenér tam zároveň dostane kód týmu, hráči se kód odebere.
   Future<void> updateMemberRole(
     String teamId,
     String uid,
     TeamRole role,
   ) async {
-    if (role == TeamRole.player) {
-      final teamDoc = await _db.collection('teams').doc(teamId).get();
-      if (teamDoc.data()?['ownerUid'] == uid) {
-        throw AppException('Správce týmu nelze změnit na hráče');
-      }
+    final teamDoc = await _db.collection('teams').doc(teamId).get();
+    if (role == TeamRole.player && teamDoc.data()?['ownerUid'] == uid) {
+      throw AppException('Správce týmu nelze změnit na hráče');
     }
+    final code = teamDoc.data()?['code'] as String?;
 
     final batch = _db.batch();
     batch.update(
@@ -296,7 +300,12 @@ class TeamService {
     );
     batch.update(
       _db.collection('users').doc(uid).collection('teams').doc(teamId),
-      {'role': role.name},
+      {
+        'role': role.name,
+        'code': role == TeamRole.coach && code != null
+            ? code
+            : FieldValue.delete(),
+      },
     );
     await batch.commit();
   }
@@ -340,6 +349,8 @@ class TeamService {
     final batch = _db.batch();
     if (TeamRole.fromName(member.data()?['role'] as String?) !=
         TeamRole.coach) {
+      // Povýšený hráč dostane do přehledu týmů i kód (viz updateMemberRole).
+      final code = (await teamRef.get()).data()?['code'] as String?;
       batch.update(member.reference, {'role': TeamRole.coach.name});
       batch.update(
         _db
@@ -347,11 +358,55 @@ class TeamService {
             .doc(newOwnerUid)
             .collection('teams')
             .doc(teamId),
-        {'role': TeamRole.coach.name},
+        // 'code': ?code – pole se zapíše, jen když kód není null.
+        {'role': TeamRole.coach.name, 'code': ?code},
       );
     }
     batch.update(teamRef, {'ownerUid': newOwnerUid});
     await batch.commit();
+  }
+
+  /// Vymění pozvánkový kód týmu za nový a vrátí ho. Starý kód přestane
+  /// platit – už se s ním nikdo nepřipojí, ani odebraný hráč, který ho
+  /// zná. Členové týmu v něm zůstanou. Smí jen správce týmu.
+  ///
+  /// V jedné dávce se změní kód v teams/{teamId}, nový kód se zapíše do
+  /// team_codes a starý se odtud smaže – pravidla ověří, že dávka
+  /// obsahuje všechno. Nový kód zároveň dostanou do svého přehledu týmů
+  /// (users/{uid}/teams) všichni trenéři.
+  ///
+  /// Vyžaduje internet (čte se přímo ze serveru, stejně jako u
+  /// [deleteTeam]) – bez připojení skončí chybou a nic se nezmění.
+  Future<String> changeCode(String teamId) async {
+    const fromServer = GetOptions(source: Source.server);
+    final teamRef = _db.collection('teams').doc(teamId);
+    final team = (await teamRef.get(fromServer)).data();
+    if (team == null) throw AppException('Tým už neexistuje');
+    final oldCode = team['code'] as String?;
+
+    final coaches = await teamRef
+        .collection('members')
+        .where('role', isEqualTo: TeamRole.coach.name)
+        .get(fromServer);
+    final newCode = await _generateUniqueCode();
+
+    final batch = _db.batch();
+    batch.update(teamRef, {'code': newCode});
+    batch.set(_db.collection('team_codes').doc(newCode), {
+      'teamId': teamId,
+      'teamName': team['name'],
+    });
+    if (oldCode != null) {
+      batch.delete(_db.collection('team_codes').doc(oldCode));
+    }
+    for (final coach in coaches.docs) {
+      batch.update(
+        _db.collection('users').doc(coach.id).collection('teams').doc(teamId),
+        {'code': newCode},
+      );
+    }
+    await batch.commit();
+    return newCode;
   }
 
   /// Úplně zruší tým – smaže samotný tým, celý roster (a jeho index u

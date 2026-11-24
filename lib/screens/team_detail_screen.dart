@@ -51,6 +51,9 @@ class _TeamDetailScreenState extends State<TeamDetailScreen>
   late final TabController _tabs = TabController(length: 3, vsync: this);
   bool _deleting = false;
   String? _ownerUid;
+  // Kód týmu z teams/{teamId} – vidí ho každý trenér a po vytvoření
+  // nového kódu se hned změní. Než dorazí, ukazuje se kód z Domů.
+  late String? _code = widget.code;
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _teamSub;
 
   late final Stream<QuerySnapshot<Map<String, dynamic>>> _members = _teamService
@@ -66,7 +69,10 @@ class _TeamDetailScreenState extends State<TeamDetailScreen>
     // změní nabízené akce (stejná oprávnění vynucuje firestore.rules).
     _teamSub = _teamService.streamTeam(widget.teamId).listen((doc) {
       if (!mounted) return;
-      setState(() => _ownerUid = doc.data()?['ownerUid'] as String?);
+      setState(() {
+        _ownerUid = doc.data()?['ownerUid'] as String?;
+        _code = doc.data()?['code'] as String? ?? _code;
+      });
     });
   }
 
@@ -80,6 +86,9 @@ class _TeamDetailScreenState extends State<TeamDetailScreen>
   bool get _isOwner =>
       _ownerUid != null && _ownerUid == FirebaseAuth.instance.currentUser?.uid;
 
+  /// Pozvánkový kód se ukazuje jen trenérům.
+  String? get _shownCode => widget.isCoach ? _code : null;
+
   void _addEvent() {
     Navigator.push(
       context,
@@ -87,6 +96,30 @@ class _TeamDetailScreenState extends State<TeamDetailScreen>
         builder: (_) => TrainingFormScreen(teamId: widget.teamId),
       ),
     );
+  }
+
+  /// Správce vymění kód týmu za nový – např. když kód unikl, nebo se
+  /// odebraný hráč nemá mít jak vrátit. Nový kód se hned ukáže v hlavičce
+  /// (přijde přes _teamSub).
+  Future<void> _changeCode() async {
+    final confirmed = await confirmDialog(
+      context,
+      title: 'Nový kód týmu',
+      message:
+          'Současný kód přestane platit – kdo ho zná, už se s ním do týmu '
+          'nepřipojí (ani odebraný hráč). Členové týmu v něm zůstanou. '
+          'Novým hráčům pak pošli nový kód.',
+      confirmLabel: 'Vytvořit nový kód',
+    );
+    if (!confirmed || !mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final code = await _teamService.changeCode(widget.teamId);
+      messenger.showSnackBar(SnackBar(content: Text('Nový kód týmu: $code')));
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text(errorText(e))));
+    }
   }
 
   Future<void> _deleteTeam() async {
@@ -167,7 +200,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen>
                               isOwner: _isOwner,
                               coachCount: coachCount,
                               playerCount: members.length - coachCount,
-                              code: widget.code,
+                              code: _shownCode,
                             ),
                           ),
                           TeamCalendarTab(
@@ -181,7 +214,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen>
                             isCoach: widget.isCoach,
                             ownerUid: _ownerUid,
                             members: members,
-                            code: widget.code,
+                            code: _shownCode,
                           ),
                         ],
                       ),
@@ -193,10 +226,10 @@ class _TeamDetailScreenState extends State<TeamDetailScreen>
     );
   }
 
-  /// Menu ⋮ vpravo nahoře – kopírovat kód (trenér), zrušit tým (správce)
-  /// a odhlásit se.
+  /// Menu ⋮ vpravo nahoře – kopírovat kód (trenér), nový kód a zrušit tým
+  /// (správce) a odhlásit se.
   Widget _buildMenu() {
-    final code = widget.code;
+    final code = _shownCode;
     final error = Theme.of(context).colorScheme.error;
     return PopupMenuButton<_TeamAction>(
       tooltip: 'Další možnosti',
@@ -204,6 +237,8 @@ class _TeamDetailScreenState extends State<TeamDetailScreen>
         switch (action) {
           case _TeamAction.copyCode:
             copyTeamCode(context, code!);
+          case _TeamAction.newCode:
+            _changeCode();
           case _TeamAction.delete:
             _deleteTeam();
           case _TeamAction.logout:
@@ -218,6 +253,15 @@ class _TeamDetailScreenState extends State<TeamDetailScreen>
               contentPadding: EdgeInsets.zero,
               leading: Icon(Icons.copy),
               title: Text('Kopírovat kód týmu'),
+            ),
+          ),
+        if (_isOwner)
+          const PopupMenuItem(
+            value: _TeamAction.newCode,
+            child: ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.autorenew),
+              title: Text('Nový kód týmu'),
             ),
           ),
         if (_isOwner)
@@ -242,7 +286,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen>
   }
 }
 
-enum _TeamAction { copyCode, delete, logout }
+enum _TeamAction { copyCode, newCode, delete, logout }
 
 /// Barevná hlavička týmu – role uživatele, počet trenérů a hráčů a u
 /// trenéra pozvánkový kód (klepnutím se zkopíruje).

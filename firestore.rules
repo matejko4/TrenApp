@@ -32,27 +32,53 @@ service cloud.firestore {
       return isSignedIn() && teamOwner(teamId) == request.auth.uid;
     }
 
-    // users/{uid} – veřejný profil uživatele (jméno, email atd.)
+    // Jméno uživatele – text o 1 až 40 znacích (stejně jako
+    // AuthService._checkName). Jméno vidí ostatní členové týmu na soupisce,
+    // a kdyby šlo uložit třeba číslo, aplikace by jim detail týmu neukázala.
+    function isValidName(name) {
+      return name is string && name.size() > 0 && name.size() <= 40;
+    }
+
+    // Jméno v dokumentu chybět smí (Google účet bez jména – aplikace si ho
+    // pak vyžádá), ale když tam je, musí být platné.
+    function hasValidNameIfAny(data) {
+      return data.get('name', null) == null || isValidName(data.name);
+    }
+
+    // users/{uid} – profil uživatele (jméno). Čte ho jen uživatel sám –
+    // ostatním se jméno zobrazuje z kopie na soupisce týmu (members).
     match /users/{uid} {
-      allow read: if isSignedIn();
-      allow create: if isMe(uid);
-      allow update: if isMe(uid);
+      allow read: if isMe(uid);
+      allow create, update: if isMe(uid) && hasValidNameIfAny(request.resource.data);
       allow delete: if false;
 
       // users/{uid}/teams/{teamId} – přehled týmů daného uživatele a jeho
       // role v nich. Zakládá si ho sám uživatel (při založení týmu nebo
       // připojení kódem). Jinému členovi ho smí upravit správce (změna
-      // role, předání vedení) a smazat trenér (odebrání hráče, zrušení týmu).
+      // role, předání vedení, nový kód týmu). Trenér ho jinému členovi smí
+      // smazat jen spolu s jeho členstvím v týmu (odebrání hráče, zrušení
+      // týmu) – jinak by mohl třeba správci tým schovat z přehledu týmů.
       match /teams/{teamId} {
         allow read: if isMe(uid) || isTeamCoach(teamId);
         allow create, update: if isMe(uid) || isTeamOwner(teamId);
-        allow delete: if isMe(uid) || isTeamCoach(teamId);
+        allow delete: if isMe(uid) || (isTeamCoach(teamId) &&
+          !existsAfter(/databases/$(database)/documents/teams/$(teamId)/members/$(uid)));
       }
     }
 
     // teams/{teamId} – základní údaje týmu (název, kód, správce). ID
     // dokumentu je upravený název týmu (viz TeamService.teamIdFromName).
     match /teams/{teamId} {
+      // Nový pozvánkový kód (TeamService.changeCode): stejná dávka musí
+      // nový kód zapsat do team_codes (s odkazem na tento tým) a starý
+      // odtud smazat – starý kód tak přestane platit pro hledání týmu
+      // i pro pravidlo připojení (joinCode se porovnává s kódem týmu).
+      function isCodeChange(oldCode, newCode) {
+        return newCode is string &&
+          getAfter(/databases/$(database)/documents/team_codes/$(newCode)).data.teamId == teamId &&
+          !existsAfter(/databases/$(database)/documents/team_codes/$(oldCode));
+      }
+
       allow read: if isTeamMember(teamId);
       // Kdo tým zakládá, je jeho správcem. ID dokumentu musí být upravený
       // název (písmena A–Z malá – lower() diakritiku nepřevádí –, bez
@@ -63,13 +89,21 @@ service cloud.firestore {
       allow create: if isSignedIn() &&
         request.resource.data.ownerUid == request.auth.uid &&
         teamId == request.resource.data.name.lower().trim().replace(' +', ' ');
-      // Jediná povolená úprava týmu je předání vedení
-      // (TeamService.transferOwnership): smí jen správce, mění se jen
-      // ownerUid a nový správce musí být po dávce trenérem týmu (hráče
-      // stejná dávka povýší). Ostatní pole (název, kód) jsou zamčená.
-      allow update: if isTeamOwner(teamId) &&
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ownerUid']) &&
-        getAfter(/databases/$(database)/documents/teams/$(teamId)/members/$(request.resource.data.ownerUid)).data.role == 'coach';
+      // Úpravy týmu smí jen správce a jsou jen dvě:
+      //  - předání vedení (TeamService.transferOwnership) – mění se jen
+      //    ownerUid a nový správce musí být po dávce trenérem týmu (hráče
+      //    stejná dávka povýší),
+      //  - nový pozvánkový kód – mění se jen code (viz isCodeChange).
+      // Název týmu je zamčený – je zároveň ID dokumentu.
+      allow update: if isTeamOwner(teamId) && (
+        (
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ownerUid']) &&
+          getAfter(/databases/$(database)/documents/teams/$(teamId)/members/$(request.resource.data.ownerUid)).data.role == 'coach'
+        ) || (
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['code']) &&
+          isCodeChange(resource.data.code, request.resource.data.code)
+        )
+      );
       // Zrušení týmu smí jen správce. Batch v TeamService.deleteTeam maže
       // spolu s tímto dokumentem i celý roster, tréninky a team_codes –
       // pravidla pro celou dávku se vyhodnocují vůči stavu databáze před
@@ -87,10 +121,12 @@ service cloud.firestore {
         // jen jako 'player' a jen se správným pozvánkovým kódem – joinCode
         // v členství se porovná s kódem týmu. Samotná znalost ID týmu
         // (název, nebo ji má třeba odebraný hráč) k připojení nestačí.
+        // Odebraný hráč, který kód zná, se vrátit může – proto může správce
+        // kód vyměnit za nový (viz update týmu výše).
         // Role 'coach' smí vzniknout jen pro správce týmu při jeho založení
         // (TeamService.createTeam) – tým vzniká ve stejné dávce, proto
         // getAfter() (stav po celé dávce).
-        allow create: if isMe(uid) && (
+        allow create: if isMe(uid) && hasValidNameIfAny(request.resource.data) && (
           (request.resource.data.role == 'player' &&
             request.resource.data.joinCode == get(/databases/$(database)/documents/teams/$(teamId)).data.code) ||
           (request.resource.data.role == 'coach' &&
@@ -108,7 +144,8 @@ service cloud.firestore {
           !(uid == teamOwner(teamId) && request.resource.data.role == 'player')
         ) || (
           isMe(uid) &&
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name'])
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name']) &&
+          isValidName(request.resource.data.name)
         );
         // Hráče smí odebrat každý trenér, trenéra jen správce. Správce sám
         // odebrat nejde (TeamService.removeMember má stejnou kontrolu) –
@@ -208,10 +245,15 @@ service cloud.firestore {
     match /team_codes/{code} {
       allow get: if isSignedIn();
       allow list: if false;
-      // Kód vzniká ve stejné dávce jako tým (TeamService.createTeam),
-      // proto getAfter() – stav po celé dávce.
+      // Kód vzniká ve stejné dávce jako tým (TeamService.createTeam), nebo
+      // jako nový kód týmu (TeamService.changeCode), proto getAfter() – stav
+      // po celé dávce. Zapsat jde jen skutečný kód týmu a jeho skutečný
+      // název – správce tak nemůže kódy „zabírat“ do zásoby ani k týmu
+      // připsat cizí název.
       allow create: if isSignedIn() &&
-        getAfter(/databases/$(database)/documents/teams/$(request.resource.data.teamId)).data.ownerUid == request.auth.uid;
+        getAfter(/databases/$(database)/documents/teams/$(request.resource.data.teamId)).data.ownerUid == request.auth.uid &&
+        getAfter(/databases/$(database)/documents/teams/$(request.resource.data.teamId)).data.code == code &&
+        getAfter(/databases/$(database)/documents/teams/$(request.resource.data.teamId)).data.name == request.resource.data.teamName;
       allow update: if false;
       // Smazání kódu je součástí rušení týmu (TeamService.deleteTeam) –
       // smí jen správce týmu, na který kód odkazuje.

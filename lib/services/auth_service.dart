@@ -71,8 +71,8 @@ class AuthService {
     } on FirebaseAuthException catch (e) {
       throw AppException(_authErrorMessage(e));
     }
-    // E-mail se sem nekopíruje – drží ho Firebase Authentication a profil
-    // users/{uid} si může přečíst kterýkoli přihlášený uživatel.
+    // E-mail se sem nekopíruje – drží ho Firebase Authentication. Profil
+    // users/{uid} čte jen uživatel sám (viz firestore.rules).
     await _db.collection('users').doc(cred.user!.uid).set({
       'name': trimmedName,
       'createdAt': FieldValue.serverTimestamp(),
@@ -116,11 +116,20 @@ class AuthService {
 
     // Jméno se při prvním přihlášení převezme z Google účtu. Pokud ho
     // účet nemá, RootGate si ho od uživatele vyžádá (NameSetupScreen).
+    // Stejně tak u jména delšího než 40 znaků – firestore.rules by ho
+    // odmítly (stejný limit jako u ručně zadaného jména, viz _checkName).
     final doc = await _db.collection('users').doc(cred.user!.uid).get();
     if (!doc.exists) {
-      final googleName = cred.user!.displayName?.trim();
+      final googleName = cred.user!.displayName?.trim().replaceAll(
+        RegExp(r'\s+'),
+        ' ',
+      );
+      final useGoogleName =
+          googleName != null &&
+          googleName.isNotEmpty &&
+          googleName.length <= 40;
       await _db.collection('users').doc(cred.user!.uid).set({
-        if (googleName != null && googleName.isNotEmpty) 'name': googleName,
+        if (useGoogleName) 'name': googleName,
         'createdAt': FieldValue.serverTimestamp(),
       });
     }

@@ -121,8 +121,9 @@ describe('Profily uživatelů (users)', () => {
     await assertFails(getDoc(doc(anonymousDb(), 'users', 'hrac')));
   });
 
-  it('přihlášený přečte profil jiného uživatele', async () => {
-    await assertSucceeds(getDoc(doc(db('hrac'), 'users', 'trener')));
+  it('přihlášený přečte jen svůj profil, cizí ne', async () => {
+    await assertSucceeds(getDoc(doc(db('hrac'), 'users', 'hrac')));
+    await assertFails(getDoc(doc(db('hrac'), 'users', 'trener')));
   });
 
   it('uživatel upraví svůj profil', async () => {
@@ -350,7 +351,7 @@ describe('Předání vedení týmu', () => {
     await assertFails(updateDoc(team('hrac'), { ownerUid: 'hrac' }));
   });
 
-  it('nikdo nezmění název ani kód týmu – ani správce', async () => {
+  it('nikdo nezmění název týmu a kód ani správce bez výměny v team_codes', async () => {
     await assertFails(updateDoc(team('trener2'), { name: 'Jiný název' }));
     await assertFails(updateDoc(team('trener'), { name: 'Jiný název' }));
     await assertFails(updateDoc(team('trener'), { code: 'ZZZZ2222' }));
