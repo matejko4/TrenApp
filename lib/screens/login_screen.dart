@@ -25,17 +25,21 @@ class _LoginScreenState extends State<LoginScreen> {
       _loading = true;
       _error = '';
     });
+    // Heslo se na rozdíl od e-mailu neořezává – mezera na začátku nebo
+    // na konci je jeho platnou součástí. Stejně ho bere změna hesla
+    // v Nastavení účtu i stránka Firebase pro obnovu hesla, takže heslo
+    // nastavené kteroukoli cestou jde vždycky použít i k přihlášení.
     try {
       if (_isLogin) {
         await _authService.login(
           _emailController.text.trim(),
-          _passwordController.text.trim(),
+          _passwordController.text,
         );
       } else {
         await _authService.register(
           _nameController.text,
           _emailController.text.trim(),
-          _passwordController.text.trim(),
+          _passwordController.text,
         );
       }
       // Dál se nikam nenaviguje – RootGate po přihlášení sám přepne na

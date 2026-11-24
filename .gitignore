@@ -59,3 +59,6 @@ ios/Runner/GoogleService-Info.plist
 # Zadání pro Claude Code (jen v počítači, ne na GitHubu)
 zaznam-behu.md
 docs/
+
+# Pomocné skripty pro testovací data (jen v počítači, ne na GitHubu)
+/tools/
