@@ -180,7 +180,7 @@ class AuthService {
   /// zatím čeká v telefonu (viz waitForServer).
   Future<bool> updateName(String name) async {
     final user = _auth.currentUser;
-    if (user == null) throw AppException('Uživatel není přihlášen');
+    if (user == null) throw AppException(notSignedInMessage);
     final trimmedName = _checkName(name);
 
     final teamsSnap = await _db
@@ -232,14 +232,19 @@ class AuthService {
       false;
 
   /// Změní heslo. Firebase vyžaduje nedávné přihlášení, proto se uživatel
-  /// nejdřív znovu ověří současným heslem.
+  /// nejdřív znovu ověří současným heslem. [confirmPassword] je nové heslo
+  /// zadané podruhé – musí se shodovat s [newPassword].
   Future<void> changePassword(
     String currentPassword,
     String newPassword,
+    String confirmPassword,
   ) async {
     final user = _auth.currentUser;
     if (user == null || user.email == null) {
-      throw AppException('Uživatel není přihlášen');
+      throw AppException(notSignedInMessage);
+    }
+    if (newPassword != confirmPassword) {
+      throw AppException('Nová hesla se neshodují');
     }
     if (newPassword.length < 6) {
       throw AppException('Nové heslo musí mít alespoň 6 znaků');

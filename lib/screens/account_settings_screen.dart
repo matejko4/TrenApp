@@ -368,10 +368,6 @@ class _ChangePasswordDialogState extends State<ChangePasswordDialog> {
   }
 
   Future<void> _save() async {
-    if (_newController.text != _confirmController.text) {
-      setState(() => _error = 'Nová hesla se neshodují');
-      return;
-    }
     setState(() {
       _loading = true;
       _error = '';
@@ -380,6 +376,7 @@ class _ChangePasswordDialogState extends State<ChangePasswordDialog> {
       await _authService.changePassword(
         _currentController.text,
         _newController.text,
+        _confirmController.text,
       );
       if (mounted) {
         final messenger = ScaffoldMessenger.of(context);

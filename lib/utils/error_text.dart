@@ -20,6 +20,10 @@ class AppException implements Exception {
 const offlineMessage =
     'Nejsi připojený k internetu. Zkus to znovu, až budeš online.';
 
+/// Hláška, když služba potřebuje přihlášeného uživatele, ale nikdo
+/// přihlášený není (např. se mezitím odhlásil).
+const notSignedInMessage = 'Uživatel není přihlášen';
+
 /// Text chyby pro uživatele:
 /// - [AppException] ze služeb → její česká hláška,
 /// - chyby Firebase a Google přihlášení kvůli chybějícímu internetu →

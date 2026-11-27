@@ -76,7 +76,7 @@ class TeamService {
   String get _uid {
     final user = _auth.currentUser;
     if (user == null) {
-      throw AppException('Uživatel není přihlášen');
+      throw AppException(notSignedInMessage);
     }
     return user.uid;
   }
@@ -133,7 +133,7 @@ class TeamService {
     }
 
     final user = _auth.currentUser;
-    if (user == null) throw AppException('Uživatel není přihlášen');
+    if (user == null) throw AppException(notSignedInMessage);
 
     final code = await _generateUniqueCode();
     final myName = await _myName(user);
@@ -200,7 +200,7 @@ class TeamService {
     }
 
     final user = _auth.currentUser;
-    if (user == null) throw AppException('Uživatel není přihlášen');
+    if (user == null) throw AppException(notSignedInMessage);
 
     final codeDoc = await _db.collection('team_codes').doc(normalized).get();
     if (!codeDoc.exists) {
