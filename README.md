@@ -24,7 +24,8 @@ Uživatel bude moci:
 - přepnout vzhled aplikace na světlý nebo tmavý režim (nebo podle nastavení telefonu),
 - založit nový tým (stane se jeho trenérem),
 - připojit se k existujícímu týmu pomocí kódu (stane se hráčem),
-- odhlásit se.
+- odhlásit se,
+- smazat svůj účet i se svými daty (správce týmu musí nejdřív předat vedení, nebo tým zrušit).
 
 ### Hráč
 
@@ -224,7 +225,8 @@ TrenApp/
 │   │   ├── run_screen.dart          – záznam běhu přes GPS
 │   │   ├── run_detail_screen.dart   – mapa trasy a údaje o běhu
 │   │   ├── notifications_screen.dart – oznámení (připravuje se)
-│   │   └── account_settings_screen.dart – nastavení účtu (jméno, heslo, vzhled)
+│   │   ├── account_settings_screen.dart – nastavení účtu (jméno, heslo, vzhled, odhlášení)
+│   │   └── delete_account_dialog.dart – smazání účtu (upozornění pro správce týmu)
 │   │
 │   ├── services/
 │   │   ├── auth_service.dart        – přihlášení, registrace, správa účtu
@@ -277,6 +279,8 @@ Obsahuje:
 - datum registrace
 
 E-mail se sem neukládá – přihlášení i obnova hesla používají e-mail z účtu ve Firebase Authentication. Profil `users/{uid}` čte jen uživatel sám – ostatním se jméno zobrazuje z kopie na soupisce týmu.
+
+Při smazání účtu se smaže profil, členství ve všech týmech (soupiska i přehled týmů) a záznamy běhů. Odpovědi BUDU / NEBUDU v trénincích zůstanou, ale nikde se neukazují – aplikace počítá jen odpovědi současných členů týmu.
 
 ### users/{uid}/teams/{teamId}
 
@@ -461,6 +465,7 @@ Aplikace obsahuje základní bezpečnostní prvky:
 - ochrana správce týmu před odebráním nebo degradací; předat vedení a zrušit tým smí jen správce,
 - trenér smí jinému členovi smazat záznam v přehledu týmů jen spolu s jeho členstvím – nemůže tak nikomu (ani správci) tým „schovat“,
 - profil uživatele (`users/{uid}`) čte jen on sám – seznam všech uživatelů aplikace nejde vypsat,
+- smazání účtu je potřeba potvrdit heslem nebo výběrem Google účtu; s účtem se smažou i jeho data (profil, členství v týmech, záznamy běhů) a správce týmu musí vedení nejdřív předat, nebo tým zrušit – tým tak nezůstane bez správce,
 - název týmu nejde po založení měnit,
 - validace vstupních údajů v aplikaci i v pravidlech (např. jméno musí být text o 1–40 znacích – jinak by šlo uložit třeba číslo a ostatním členům by se detail týmu nezobrazil).
 
@@ -546,6 +551,7 @@ Testovat se budou například:
 - změna jména a jeho zobrazení na soupisce týmu,
 - přihlášení e-mailem a účtem Google,
 - odhlášení,
+- smazání účtu (i upozornění pro správce týmu),
 - založení týmu,
 - připojení k týmu pomocí kódu,
 - změna role člena,
@@ -562,7 +568,7 @@ Testovat se budou například:
 
 Projekt má dvě sady automatických testů.
 
-**Testy bezpečnostních pravidel** (`firestore_tests/rules.test.js`, 77 testů) ověřují `firestore.rules` proti lokálnímu Firebase Emulatoru – skutečná databáze se nepoužívá. Každý test provede jednu operaci jako konkrétní uživatel (správce, trenér, hráč, nečlen týmu, nepřihlášený) a ověří, že ji pravidla povolí, nebo zamítnou. Pokrývají například:
+**Testy bezpečnostních pravidel** (`firestore_tests/rules.test.js`, 81 testů) ověřují `firestore.rules` proti lokálnímu Firebase Emulatoru – skutečná databáze se nepoužívá. Každý test provede jednu operaci jako konkrétní uživatel (správce, trenér, hráč, nečlen týmu, nepřihlášený) a ověří, že ji pravidla povolí, nebo zamítnou. Pokrývají například:
 
 - hráč si nemůže sám změnit roli na trenéra ani se připojit rovnou jako trenér,
 - bez správného kódu se do týmu nikdo nepřipojí – ani odebraný hráč, který ID týmu zná,
@@ -571,7 +577,8 @@ Projekt má dvě sady automatických testů.
 - správce týmu nejde změnit na hráče ani odebrat; vedení předá a tým zruší jen on,
 - vedení jde předat jen členovi týmu, který je (nebo se stejnou dávkou stane) trenérem,
 - název týmu nejde po založení přepsat a kód ani správce nezmění jinak než výměnou i v `team_codes`,
-- profil uživatele přečte jen on sám,
+- profil uživatele přečte a smaže jen on sám,
+- člen smí z týmu odejít sám (smazání účtu), správce až po předání vedení,
 - nečlen nevidí tým, soupisku ani tréninky; pozvánkové kódy nejde hromadně vypsat,
 - tým se zakládá v jedné dávce (tým, kód, členství správce) a kód nejde vytvořit pro cizí tým,
 - hráč vidí jen společné tréninky a individuální tréninky zadané jemu; zápas jde zadat jen pro celý tým,

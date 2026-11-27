@@ -440,17 +440,10 @@ class TeamService {
       for (final trainingDoc in trainingsSnap.docs)
         trainingDoc.reference.collection('runs').get(fromServer),
     ]);
-    final runRefs = [
+    await _deleteInBatches([
       for (final runs in runsSnaps)
         for (final run in runs.docs) run.reference,
-    ];
-    for (var i = 0; i < runRefs.length; i += 500) {
-      final runsBatch = _db.batch();
-      for (final ref in runRefs.skip(i).take(500)) {
-        runsBatch.delete(ref);
-      }
-      await runsBatch.commit();
-    }
+    ]);
 
     final batch = _db.batch();
     for (final trainingDoc in trainingsSnap.docs) {
@@ -472,5 +465,88 @@ class TeamService {
     batch.delete(teamRef);
 
     await batch.commit();
+  }
+
+  /// Týmy, které aktuální uživatel spravuje (je jejich správcem) – jako
+  /// záznamy z jeho přehledu týmů users/{uid}/teams (stejně jako na
+  /// HomeScreen: id = ID týmu, v datech název a kód). Před smazáním účtu
+  /// je musí předat jinému členovi, nebo zrušit – tým nesmí zůstat bez
+  /// správce.
+  ///
+  /// Čte se přímo ze serveru: vedení mohl uživatel mezitím předat třeba
+  /// na jiném zařízení a starší kopie v telefonu by to ještě nevěděla.
+  Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>> ownedTeams() async {
+    const fromServer = GetOptions(source: Source.server);
+    final uid = _uid;
+    final myTeams = await _db
+        .collection('users')
+        .doc(uid)
+        .collection('teams')
+        .get(fromServer);
+
+    final owned = <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+    for (final teamDoc in myTeams.docs) {
+      // Správce je vždy trenér – u hráčských týmů se tým číst nemusí.
+      final role = TeamRole.fromName(teamDoc.data()['role'] as String?);
+      if (role != TeamRole.coach) continue;
+      final team = await _db
+          .collection('teams')
+          .doc(teamDoc.id)
+          .get(fromServer);
+      if (team.data()?['ownerUid'] == uid) owned.add(teamDoc);
+    }
+    return owned;
+  }
+
+  /// Odebere aktuálního uživatele ze všech jeho týmů – součást smazání
+  /// účtu (AuthService.deleteAccount). Smaže jeho členství na soupiskách,
+  /// jeho přehled týmů a jeho záznamy běhů (GPS trasy).
+  ///
+  /// Odpovědi BUDU / NEBUDU v trénincích zůstanou – aplikace počítá jen
+  /// odpovědi současných členů týmu, takže se nikde neukážou (stejně jako
+  /// po odebrání hráče v [removeMember]).
+  ///
+  /// Správce takto tým opustit nemůže – pravidla smazání jeho členství
+  /// zamítnou. Nejdřív musí vedení předat, nebo tým zrušit (viz
+  /// [ownedTeams]).
+  Future<void> leaveAllTeams() async {
+    const fromServer = GetOptions(source: Source.server);
+    final uid = _uid;
+    final myTeams = await _db
+        .collection('users')
+        .doc(uid)
+        .collection('teams')
+        .get(fromServer);
+
+    // Nejdřív se všechno načte, pak teprve maže – po smazání členství by
+    // uživatel tréninky týmu už číst nesměl.
+    final refs = <DocumentReference>[];
+    for (final teamDoc in myTeams.docs) {
+      final teamRef = _db.collection('teams').doc(teamDoc.id);
+      // Běh jde uložit jen k tréninku, který je hráči zadaný (viz
+      // firestore.rules), stačí tedy projít tréninky s ním v assignedTo.
+      final assigned = await teamRef
+          .collection('trainings')
+          .where('assignedTo', arrayContains: uid)
+          .get(fromServer);
+      for (final training in assigned.docs) {
+        refs.add(training.reference.collection('runs').doc(uid));
+      }
+      refs.add(teamRef.collection('members').doc(uid));
+      refs.add(teamDoc.reference);
+    }
+    await _deleteInBatches(refs);
+  }
+
+  /// Smaže dokumenty [refs] po dávkách – jedna dávka pojme nejvýš 500
+  /// zápisů. Smazání dokumentu, který neexistuje, chybou není.
+  Future<void> _deleteInBatches(List<DocumentReference> refs) async {
+    for (var i = 0; i < refs.length; i += 500) {
+      final batch = _db.batch();
+      for (final ref in refs.skip(i).take(500)) {
+        batch.delete(ref);
+      }
+      await batch.commit();
+    }
   }
 }

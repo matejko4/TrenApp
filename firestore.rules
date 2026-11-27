@@ -50,7 +50,8 @@ service cloud.firestore {
     match /users/{uid} {
       allow read: if isMe(uid);
       allow create, update: if isMe(uid) && hasValidNameIfAny(request.resource.data);
-      allow delete: if false;
+      // Smazání účtu (AuthService.deleteAccount) – jen vlastní profil.
+      allow delete: if isMe(uid);
 
       // users/{uid}/teams/{teamId} – přehled týmů daného uživatele a jeho
       // role v nich. Zakládá si ho sám uživatel (při založení týmu nebo
@@ -153,7 +154,11 @@ service cloud.firestore {
         // ve stejné dávce maže i teams/{teamId}, což ověří existsAfter()
         // (existsAfter/getAfter vyhodnocují stav PO celé dávce, ne jen po
         // tomto jednom zápisu).
-        allow delete: if (isTeamCoach(teamId) && resource.data.role == 'player') ||
+        // Člen smí z týmu odejít i sám (při smazání účtu, viz
+        // TeamService.leaveAllTeams) – kromě správce, ten musí vedení
+        // nejdřív předat, nebo tým zrušit.
+        allow delete: if (isMe(uid) && uid != teamOwner(teamId)) ||
+          (isTeamCoach(teamId) && resource.data.role == 'player') ||
           (isTeamOwner(teamId) && (
             uid != teamOwner(teamId) ||
             !existsAfter(/databases/$(database)/documents/teams/$(teamId))

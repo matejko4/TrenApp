@@ -6,9 +6,10 @@ import '../utils/error_text.dart';
 import '../widgets/account_actions.dart';
 import '../widgets/app_bottom_bar.dart';
 import '../widgets/common.dart';
+import 'delete_account_dialog.dart';
 
-/// Nastavení účtu: změna jména, hesla, vzhled (světlý / tmavý režim)
-/// a odhlášení.
+/// Nastavení účtu: změna jména, hesla, vzhled (světlý / tmavý režim),
+/// odhlášení a smazání účtu.
 class AccountSettingsScreen extends StatelessWidget {
   const AccountSettingsScreen({super.key});
 
@@ -143,6 +144,21 @@ class AccountSettingsScreen extends StatelessWidget {
                       ),
                     ),
                     onTap: () => logOut(context),
+                  ),
+                  ListTile(
+                    leading: Icon(
+                      Icons.delete_forever_outlined,
+                      color: colors.error,
+                    ),
+                    title: Text(
+                      'Smazat účet',
+                      style: TextStyle(color: colors.error),
+                    ),
+                    subtitle: const Text('Nevratně smaže účet i tvoje data'),
+                    onTap: () => showDialog(
+                      context: context,
+                      builder: (_) => const DeleteAccountDialog(),
+                    ),
                   ),
                 ],
               ),

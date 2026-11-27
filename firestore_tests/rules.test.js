@@ -134,6 +134,11 @@ describe('Profily uživatelů (users)', () => {
     await assertFails(updateDoc(doc(db('hrac'), 'users', 'trener'), { name: 'Hacker' }));
   });
 
+  it('uživatel smaže svůj profil (smazání účtu), cizí ne', async () => {
+    await assertFails(deleteDoc(doc(db('hrac'), 'users', 'trener')));
+    await assertSucceeds(deleteDoc(doc(db('hrac'), 'users', 'hrac')));
+  });
+
   it('seznam týmů jiného uživatele je soukromý', async () => {
     await assertSucceeds(getDoc(doc(db('hrac'), 'users', 'hrac', 'teams', TEAM)));
     await assertFails(getDoc(doc(db('hrac2'), 'users', 'hrac', 'teams', TEAM)));
@@ -300,6 +305,37 @@ describe('Role a správa členů', () => {
   it('správce nejde z týmu odebrat – ani jiným trenérem, ani sám sebou', async () => {
     await assertFails(deleteDoc(doc(db('trener2'), 'teams', TEAM, 'members', 'trener')));
     await assertFails(deleteDoc(doc(db('trener'), 'teams', TEAM, 'members', 'trener')));
+  });
+
+  // Stejné čtení a mazání jako TeamService.leaveAllTeams při smazání účtu.
+  async function leaveTeam(uid) {
+    const fs = db(uid);
+    const assigned = await getDocs(
+      query(collection(fs, 'teams', TEAM, 'trainings'), where('assignedTo', 'array-contains', uid)),
+    );
+    const batch = writeBatch(fs);
+    for (const training of assigned.docs) batch.delete(doc(training.ref, 'runs', uid));
+    batch.delete(doc(fs, 'teams', TEAM, 'members', uid));
+    batch.delete(doc(fs, 'users', uid, 'teams', TEAM));
+    return batch.commit();
+  }
+
+  it('hráč i trenér z týmu sami odejdou (TeamService.leaveAllTeams)', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), 'teams', TEAM, 'trainings', 'beh', 'runs', 'hrac'), { startedAt: Timestamp.now() });
+    });
+    await assertSucceeds(leaveTeam('hrac'));
+    await assertSucceeds(leaveTeam('trener2'));
+  });
+
+  it('správce z týmu sám neodejde – nejdřív musí předat vedení nebo tým zrušit', async () => {
+    await assertFails(leaveTeam('trener'));
+  });
+
+  it('po předání vedení původní správce z týmu odejde', async () => {
+    const trener = db('trener');
+    await assertSucceeds(updateDoc(doc(trener, 'teams', TEAM), { ownerUid: 'trener2' }));
+    await assertSucceeds(leaveTeam('trener'));
   });
 
   it('správce zruší celý tým včetně podkolekcí (TeamService.deleteTeam)', async () => {

@@ -8,6 +8,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 
 import '../utils/error_text.dart';
 import '../utils/firestore_write.dart';
+import 'team_service.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -46,6 +47,10 @@ class AuthService {
     'network-request-failed' => offlineMessage,
     'popup-blocked' =>
       'Prohlížeč zablokoval okno pro přihlášení – povol vyskakovací okna',
+    // Při znovuověření (smazání účtu) vybral uživatel jiný Google účet.
+    'user-mismatch' => 'Vyber stejný Google účet, kterým jsi přihlášený',
+    'requires-recent-login' =>
+      'Z bezpečnostních důvodů se odhlas, znovu přihlas a zkus to znovu',
     _ => 'Něco se nepovedlo (${e.code})',
   };
 
@@ -157,18 +162,25 @@ class AuthService {
   /// Android: výběr Google účtu přes balíček google_sign_in, získaný
   /// účet se pak použije k přihlášení do Firebase.
   Future<UserCredential?> _signInWithGoogleApp() async {
+    final credential = await _pickGoogleAccount();
+    if (credential == null) return null;
+    return _auth.signInWithCredential(credential);
+  }
+
+  /// Android: okno s výběrem Google účtu (balíček google_sign_in). Vrací
+  /// přihlašovací údaje pro Firebase, nebo null, když uživatel okno
+  /// zavřel bez výběru účtu.
+  Future<AuthCredential?> _pickGoogleAccount() async {
     final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
-    if (googleUser == null) return null; // okno zavřené bez výběru účtu
+    if (googleUser == null) return null;
 
     final GoogleSignInAuthentication googleAuth =
         await googleUser.authentication;
 
-    final credential = GoogleAuthProvider.credential(
+    return GoogleAuthProvider.credential(
       accessToken: googleAuth.accessToken,
       idToken: googleAuth.idToken,
     );
-
-    return _auth.signInWithCredential(credential);
   }
 
   /// Nastaví/změní jméno aktuálního uživatele. Kromě users/{uid} se jméno
@@ -277,6 +289,95 @@ class AuthService {
     } on FirebaseAuthException catch (e) {
       throw AppException(_authErrorMessage(e));
     }
+  }
+
+  /// Smaže účet přihlášeného uživatele i jeho data. Vrací false, když
+  /// uživatel zavřel okno Google účtu – pak se nic nesmazalo.
+  ///
+  /// Postup:
+  ///  1. Uživatel nesmí spravovat žádný tým (TeamService.ownedTeams) –
+  ///     tým by zůstal bez správce. Hlídají to i firestore.rules.
+  ///  2. Znovuověření – heslem ([password]), nebo výběrem Google účtu.
+  ///     Firebase smazání účtu dovolí jen po nedávném přihlášení a zároveň
+  ///     tak účet nesmaže nikdo, kdo jen vezme do ruky odemčený telefon.
+  ///  3. Odchod ze všech týmů (TeamService.leaveAllTeams) a smazání
+  ///     profilu users/{uid}.
+  ///  4. Smazání účtu ve Firebase Authentication – tím se uživatel
+  ///     zároveň odhlásí a RootGate ukáže přihlašovací obrazovku.
+  ///
+  /// Data se mažou před účtem, protože bez účtu by k nim uživatel už
+  /// neměl oprávnění. Díky kroku 2 krok 4 neselže na „vyžaduje nedávné
+  /// přihlášení“. Všechno se čte přímo ze serveru, takže bez internetu
+  /// to skončí chybou dřív, než se cokoli smaže.
+  Future<bool> deleteAccount({String password = ''}) async {
+    final user = _auth.currentUser;
+    if (user == null) throw AppException(notSignedInMessage);
+    final usesPassword = hasPasswordLogin;
+    if (usesPassword && password.isEmpty) {
+      throw AppException('Zadej heslo');
+    }
+
+    final teamService = TeamService();
+    if ((await teamService.ownedTeams()).isNotEmpty) {
+      throw AppException('Nejdřív předej vedení svých týmů, nebo je zruš');
+    }
+
+    try {
+      if (usesPassword) {
+        await user.reauthenticateWithCredential(
+          EmailAuthProvider.credential(email: user.email!, password: password),
+        );
+      } else if (!await _reauthenticateWithGoogle(user)) {
+        return false;
+      }
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'wrong-password' || e.code == 'invalid-credential') {
+        throw AppException('Heslo není správné');
+      }
+      throw AppException(_authErrorMessage(e));
+    } on PlatformException catch (e) {
+      if (e.code == GoogleSignIn.kSignInCanceledError) return false;
+      if (e.code == GoogleSignIn.kNetworkError) {
+        throw AppException(offlineMessage);
+      }
+      throw AppException('Ověření přes Google selhalo');
+    }
+
+    await teamService.leaveAllTeams();
+    await _db.collection('users').doc(user.uid).delete();
+    try {
+      await user.delete();
+    } on FirebaseAuthException catch (e) {
+      throw AppException(_authErrorMessage(e));
+    }
+    // Ať příští přihlášení přes Google znovu nabídne výběr účtu. Účet už
+    // je smazaný, takže případná chyba tady nevadí.
+    if (!kIsWeb) await _googleSignIn.signOut().catchError((Object _) => null);
+    return true;
+  }
+
+  /// Znovuověření Google účtem (před smazáním účtu) – stejné okno jako při
+  /// přihlášení. Vrací false, když ho uživatel zavřel.
+  Future<bool> _reauthenticateWithGoogle(User user) async {
+    if (kIsWeb) {
+      try {
+        await user.reauthenticateWithPopup(GoogleAuthProvider());
+        return true;
+      } on FirebaseAuthException catch (e) {
+        if (e.code == 'popup-closed-by-user' ||
+            e.code == 'cancelled-popup-request') {
+          return false;
+        }
+        rethrow;
+      }
+    }
+    // Bez odhlášení by google_sign_in okno vůbec neukázal a rovnou vrátil
+    // naposledy vybraný účet – potvrzení by pak nic neznamenalo.
+    await _googleSignIn.signOut();
+    final credential = await _pickGoogleAccount();
+    if (credential == null) return false;
+    await user.reauthenticateWithCredential(credential);
+    return true;
   }
 
   // Odhlášení
